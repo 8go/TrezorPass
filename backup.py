@@ -12,7 +12,7 @@ class Backup(object):
 	Performs backup and restore for password storage
 	"""
 	
-	RSA_KEYSIZE = 2048
+	RSA_KEYSIZE = 4096
 	SYMMETRIC_KEYSIZE = 32
 	BLOCKSIZE = 16
 
