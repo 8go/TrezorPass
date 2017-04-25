@@ -25,6 +25,13 @@ BLOCKSIZE = 16
 MACSIZE = 32
 KEYSIZE = 32
 
+# Data storage version, format of PWDB file
+#version 1 stores only the password in the value part of the key-value pair
+#version 2 stores password and comments in the value part of the key-value pair
+#version 2 software opens a version 1 pwdb file and stores it as version 2; version 1 software cannot open a version 2 pwdb file.
+#i.e. v2 is backwards compatible (v2 software can open v1 dbpw file) but not forwards compatible (v1 software cannot open v2 dbpw file). 
+PWDBVERSION = 2
+
 class PasswordGroup(object):
 	"""
 	Holds data for one password group.
@@ -39,7 +46,7 @@ class PasswordGroup(object):
 		self.entries = []
 	
 	def addEntry(self, key, encryptedValue, backupValue):
-		"""Add key-value-backud entry"""
+		"""Add key-value-backup entry"""
 		self.entries.append((key, encryptedValue, backupValue))
 	
 	def removeEntry(self, idx):
@@ -60,6 +67,9 @@ class PasswordGroup(object):
 class PasswordMap(object):
 	"""Storage of groups of passwords in memory"""
 	
+	MAXPADDEDTREZORENCRYPTSIZE = 1024
+	MAXUNPADDEDTREZORENCRYPTSIZE = MAXPADDEDTREZORENCRYPTSIZE - 1
+
 	def __init__(self, trezor):
 		assert trezor is not None
 		self.groups = {}
@@ -67,6 +77,7 @@ class PasswordMap(object):
 		self.outerKey = None # outer AES-CBC key
 		self.outerIv = None  # IV for data blob encrypted with outerKey
 		self.backupKey = None
+		self.version = None
 	
 	def addGroup(self, groupName):
 		"""
@@ -90,8 +101,10 @@ class PasswordMap(object):
 			if header != Magic.headerStr:
 				raise IOError("Bad header in storage file")
 			version = f.read(4)
-			if len(version) != 4 or struct.unpack("!I", version)[0] != 1:
+			if len(version) != 4 or ( struct.unpack("!I", version)[0] != 1 and struct.unpack("!I", version)[0] != 2 ):
 				raise IOError("Unknown version of storage file")
+			self.version = struct.unpack("!I", version)[0]
+
 			wrappedKey = f.read(KEYSIZE)
 			if len(wrappedKey) != KEYSIZE:
 				raise IOError("Corrupted disk format - bad wrapped key length")
@@ -150,7 +163,7 @@ class PasswordMap(object):
 		wrappedKey = self.wrapKey(self.outerKey)
 		
 		with file(fname, "wb") as f:
-			version = 1
+			version = PWDBVERSION 
 			f.write(Magic.headerStr)
 			f.write(struct.pack("!I", version))
 			f.write(wrappedKey)
@@ -224,9 +237,21 @@ class PasswordMap(object):
 		"""
 		rnd = Random.new()
 		rndBlock = rnd.read(BLOCKSIZE)
-		padded = Padding(BLOCKSIZE).pad(password)
 		ugroup = groupName.decode("utf-8")
-		ret = rndBlock + self.trezor.encrypt_keyvalue(Magic.groupNode, ugroup, padded, ask_on_encrypt=False, ask_on_decrypt=True, iv=rndBlock)
+		# minimum size of unpadded plaintext as input to trezor.encrypt_keyvalue() is 0    ==> padded that is 16 bytes
+		# maximum size of unpadded plaintext as input to trezor.encrypt_keyvalue() is 1023 ==> padded that is 1024 bytes
+		# plaintext input to trezor.encrypt_keyvalue() must be a multiple of 16
+		# trezor.encrypt_keyvalue() throws error on anythin larger than 1024
+		# In order to handle passwords+comments larger than 1023 we junk the passwords+comments
+		encrypted = ""
+		first = True
+		splits=[password[x:x+self.MAXUNPADDEDTREZORENCRYPTSIZE] for x in range(0,len(password),self.MAXUNPADDEDTREZORENCRYPTSIZE)]
+		for junk in splits:
+			padded = Padding(BLOCKSIZE).pad(junk)
+			encrypted += self.trezor.encrypt_keyvalue(Magic.groupNode, ugroup, padded, ask_on_encrypt=False, ask_on_decrypt=first, iv=rndBlock)
+			first = False
+		ret = rndBlock + encrypted
+		# print "Trezor encryption: plain-size =", len(password), ", encrypted-size =", len(encrypted)
 		return ret
 		
 	def decryptPassword(self, encryptedPassword, groupName):
@@ -238,6 +263,13 @@ class PasswordMap(object):
 		"""
 		ugroup = groupName.decode("utf-8")
 		iv, encryptedPassword = encryptedPassword[:BLOCKSIZE], encryptedPassword[BLOCKSIZE:]
-		plain = self.trezor.decrypt_keyvalue(Magic.groupNode, ugroup, encryptedPassword, ask_on_encrypt=False, ask_on_decrypt=True, iv=iv)
-		password = Padding(BLOCKSIZE).unpad(plain)
+		# we junk the input, decrypt and reassemble the plaintext
+		password = ""
+		first = True
+		splits=[encryptedPassword[x:x+self.MAXPADDEDTREZORENCRYPTSIZE] for x in range(0,len(encryptedPassword),self.MAXPADDEDTREZORENCRYPTSIZE)]
+		for junk in splits:
+			plain = self.trezor.decrypt_keyvalue(Magic.groupNode, ugroup, junk, ask_on_encrypt=False, ask_on_decrypt=first, iv=iv)
+			first = False
+			password += Padding(BLOCKSIZE).unpad(plain)
 		return password
+

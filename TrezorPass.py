@@ -5,6 +5,7 @@ import csv
 
 from PyQt4 import QtGui, QtCore
 from Crypto import Random
+from shutil import copyfile
 
 from trezorlib.client import BaseClient, ProtocolMixin, CallException, PinException
 from trezorlib.transport import ConnectionError
@@ -26,6 +27,9 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 	KEY_IDX = 0 #column where key is shown in password table
 	PASSWORD_IDX = 1 #column where password is shown in password table
 	CACHE_IDX = 0 #column of QWidgetItem in whose data we cache decrypted passwords
+	COMMENTS_IDX = 1 #column of QWidgetItem in whose data we cache decrypted comments
+	# MAXSIZEOFPASSWDANDCOMMENTS limit is arbitrary, could handle larger size, but set to 4K for safety
+	MAXSIZEOFPASSWDANDCOMMENTS = 4096 # artificial limit on the GUI 
 	
 	def __init__(self, pwMap, dbFilename):
 		"""
@@ -223,7 +227,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 	def cachePassword(self, row, password):
 		"""
 		Cache decrypted password for group and row. Cached items are
-		keps as data of QTableWidgetItem so that deletion invalidates
+		kept as data of QTableWidgetItem so that deletion invalidates
 		cache.
 		
 		Cache applies to currently selectedGroup.
@@ -234,12 +238,39 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		item = self.passwordTable.item(row, MainWindow.CACHE_IDX)
 		item.setData(QtCore.Qt.UserRole, QtCore.QVariant(s2q(password)))
 	
+	def cacheComments(self, row, comments):
+		"""
+		Cache decrypted comments for group and row. Cached items are
+		kept as data of QTableWidgetItem so that deletion invalidates
+		cache.
+		
+		Cache applies to currently selectedGroup.
+		
+		Switching between groups clears the table and thus invalidates
+		cached comments.
+		"""
+		item = self.passwordTable.item(row, MainWindow.COMMENTS_IDX)
+		item.setData(QtCore.Qt.UserRole, QtCore.QVariant(s2q(comments)))
+	
 	def cachedPassword(self, row):
 		"""
 		Retrieve cached password for given row of currently selected group.
 		Returns password as string or None if no password cached.
 		"""
 		item = self.passwordTable.item(row, MainWindow.CACHE_IDX)
+		cached = item.data(QtCore.Qt.UserRole)
+		
+		if cached.isValid():
+			return q2s(cached.toString())
+		
+		return None
+	
+	def cachedComments(self, row):
+		"""
+		Retrieve cached comments for given row of currently selected group.
+		Returns comments as string or None if no coments cached.
+		"""
+		item = self.passwordTable.item(row, MainWindow.COMMENTS_IDX)
 		cached = item.data(QtCore.Qt.UserRole)
 		
 		if cached.isValid():
@@ -259,11 +290,37 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		else: #decrypt with Trezor
 			group = self.pwMap.groups[self.selectedGroup]
 			pwEntry = group.entry(row)
-			encPw = pwEntry[1]
+			encPwComments = pwEntry[1]
 			
-			decrypted = self.pwMap.decryptPassword(encPw, self.selectedGroup)
-		
+			decryptedPwComments = self.pwMap.decryptPassword(encPwComments, self.selectedGroup)
+			lngth = int(decryptedPwComments[0:4])
+			decrypted = decryptedPwComments[4:4+lngth]
+			decryptedComments = decryptedPwComments[4+lngth:] #while we are at it, cache the comments too
+			self.cachePassword(row, decrypted)
+			self.cacheComments(row, decryptedComments)
 		return decrypted
+	
+	def cachedOrDecryptComments(self, row):
+		"""
+		Try retrieving cached comments for item in given row, otherwise
+		decrypt with Trezor.
+		"""
+		cached = self.cachedComments(row)
+		
+		if cached is not None:
+			return cached
+		else: #decrypt with Trezor
+			group = self.pwMap.groups[self.selectedGroup]
+			pwEntry = group.entry(row)
+			encPwComments = pwEntry[1]
+			
+			decryptedPwComments = self.pwMap.decryptPassword(encPwComments, self.selectedGroup)
+			lngth = int(decryptedPwComments[0:4])
+			decrypted = decryptedPwComments[4:4+lngth]
+			decryptedComments = decryptedPwComments[4+lngth:]
+			self.cachePassword(row, decrypted)
+			self.cacheComments(row, decryptedComments)
+		return decryptedComments
 	
 	def showPassword(self, item):
 		#check if this password has been decrypted, use cached version
@@ -295,11 +352,19 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		self.passwordTable.setItem(rowCount, self.PASSWORD_IDX, pwItem)
 		
 		plainPw = q2s(dialog.pw1())
-		encPw = self.pwMap.encryptPassword(plainPw, self.selectedGroup)
-		bkupPw = self.pwMap.backupKey.encryptPassword(plainPw)
+		plainComments = q2s(dialog.comments())
+		if len(plainPw) + len(plainComments) > self.MAXSIZEOFPASSWDANDCOMMENTS:
+			msgBox = QtGui.QMessageBox(text="Password and/or comments too long. Combined they must not be larger than " + str(self.MAXSIZEOFPASSWDANDCOMMENTS) + ".")
+			msgBox.exec_()
+			return
+
+		plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
+		encPw = self.pwMap.encryptPassword(plainPwComments, self.selectedGroup)
+		bkupPw = self.pwMap.backupKey.encryptPassword(plainPwComments)
 		group.addEntry(q2s(dialog.key()), encPw, bkupPw)
 		
 		self.cachePassword(rowCount, plainPw)
+		self.cacheComments(rowCount, plainComments)
 		
 		self.passwordTable.resizeRowsToContents()
 		self.setModified(True)
@@ -309,6 +374,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		group = self.pwMap.groups[self.selectedGroup]
 		try:
 			decrypted = self.cachedOrDecrypt(row)
+			decryptedComments = self.cachedOrDecryptComments(row)
 		except CallException:
 			return
 		
@@ -317,6 +383,8 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		dialog.keyEdit.setText(s2q(entry[0]))
 		dialog.pwEdit1.setText(s2q(decrypted))
 		dialog.pwEdit2.setText(s2q(decrypted))
+		doc = QtGui.QTextDocument(s2q(decryptedComments))
+		dialog.commentsEdit.setDocument(doc)
 		
 		if not dialog.exec_():
 			return
@@ -327,11 +395,20 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		self.passwordTable.setItem(row, self.PASSWORD_IDX, pwItem)
 		
 		plainPw = q2s(dialog.pw1())
-		encPw = self.pwMap.encryptPassword(plainPw, self.selectedGroup)
-		bkupPw = self.pwMap.backupKey.encryptPassword(plainPw)
+		plainComments = q2s(dialog.comments())
+		if len(plainPw) + len(plainComments) > self.MAXSIZEOFPASSWDANDCOMMENTS:
+			msgBox = QtGui.QMessageBox(text="Password and/or comments too long. Combined they must not be larger than " + str(self.MAXSIZEOFPASSWDANDCOMMENTS) + ".")
+			msgBox.exec_()
+			return
+
+		plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
+
+		encPw = self.pwMap.encryptPassword(plainPwComments, self.selectedGroup)
+		bkupPw = self.pwMap.backupKey.encryptPassword(plainPwComments)
 		group.updateEntry(row, q2s(dialog.key()), encPw, bkupPw)
 		
 		self.cachePassword(row, plainPw)
+		self.cacheComments(row, plainComments)
 		self.setModified(True)
 	
 	def copyPasswordFromSelection(self):
@@ -427,8 +504,11 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 				group = self.pwMap.groups[groupName]
 				for entry in group.entries:
 					key, _, bkupPw = entry
-					password = backupKey.decryptPassword(bkupPw, privateKey)
-					csvEntry = (groupName, key, password)
+					decryptedPwComments = backupKey.decryptPassword(bkupPw, privateKey)
+					lngth = int(decryptedPwComments[0:4])
+					password = decryptedPwComments[4:4+lngth]
+					comments = decryptedPwComments[4+lngth:]
+					csvEntry = (groupName, key, password, comments)
 					writer.writerow(csvEntry)
 	
 	def saveDatabase(self):
@@ -612,6 +692,28 @@ def initializeStorage(trezor, pwMap, settings):
 	settings.dbFilename = q2s(dialog.pwFile())
 	settings.store()
 	
+def updatePwMapFromV1ToV2(pwMap, settings):
+	"""
+	Update the pwMap from v1 (only password) to v2 (password and comments).
+	"""
+	backupKey = pwMap.backupKey
+	try:
+		privateKey = backupKey.unwrapPrivateKey()
+	except CallException:
+		return
+
+	for groupName in pwMap.groups.keys():
+		group = pwMap.groups[groupName]
+		for entry in group.entries:
+			key, encryptedPw, bkupPw = entry
+			plainPw = backupKey.decryptPassword(bkupPw, privateKey)
+			plainPwComments = ("%4d" % len(plainPw)) + plainPw
+			encPw = pwMap.encryptPassword(plainPwComments, groupName)
+			bkupPw = pwMap.backupKey.encryptPassword(plainPwComments)
+			idx = group.entries.index(entry)
+			group.updateEntry(idx, key, encPw, bkupPw)
+	pwMap.save(settings.dbFilename)
+	print "Trezorpass database", settings.dbFilename, "successfully updated from version 1 to version 2."
 
 app = QtGui.QApplication(sys.argv)
 
@@ -649,7 +751,13 @@ if settings.dbFilename and os.path.isfile(settings.dbFilename):
 		msgBox = QtGui.QMessageBox(text="Could not decrypt passwords: " + e.message)
 		msgBox.exec_()
 		sys.exit(5)
-		
+
+	if pwMap.version == 1:
+		copyfile(settings.dbFilename, settings.dbFilename + ".v1.backup")
+		msgBox = QtGui.QMessageBox(text="Updating Trezorpass database file from version 1 to version 2. Please make a backup of " + settings.dbFilename + " now!")
+		msgBox.exec_()
+		updatePwMapFromV1ToV2(pwMap, settings)		
+
 else:
 	initializeStorage(trezor, pwMap, settings)
 	

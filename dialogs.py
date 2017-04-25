@@ -68,6 +68,10 @@ class AddPasswordDialog(QtGui.QDialog, Ui_AddPasswordDialog):
 	def pw2(self):
 		return self.pwEdit2.text()
 	
+	def comments(self):
+		doc = self.commentsEdit.document()
+		return doc.toPlainText()
+	
 	def validatePw(self):
 		same = self.pw1() == self.pw2()
 		button = self.buttonBox.button(QtGui.QDialogButtonBox.Ok)
