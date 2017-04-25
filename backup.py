@@ -12,9 +12,11 @@ class Backup(object):
 	Performs backup and restore for password storage
 	"""
 	
-	RSA_KEYSIZE = 4096
+	RSA_KEYSIZE = 4096 # in bits
 	SYMMETRIC_KEYSIZE = 32
 	BLOCKSIZE = 16
+	RSABLOCKSIZE = RSA_KEYSIZE / 8 # in bytes
+	SAFERSABLOCKSIZEWITHOUTBUFFER = RSABLOCKSIZE - 2 - 2 * 32 # 446 # 4096 / 8 - 2 - 2*32
 
 	
 	def __init__(self, trezor):
@@ -100,10 +102,24 @@ class Backup(object):
 		Encrypt password with RSA under OAEP padding and return it.
 		Password must be shorter than modulus length minus padding
 		length.
+
+		With a 4096 bit RSA key that results in a maximum length of
+		470 bytes for the plaintext for this implementation (4096/8-2*hashsize-2).
 		"""
 		cipher = PKCS1_OAEP.new(self.publicKey)
-		encrypted = cipher.encrypt(password)
-		
+		# With a 4096 bit RSA key PKCS1_OAEP.cipher.encrypt() has as limit a maximum
+		# length of 470 bytes for the plaintext in this implementation 
+		# (4096/8-2*hashsize-2).
+		# The resulting encrypted block is of size 512 bytes.
+		# To allow larger plain text we junk the plaintext into 446 byte pieces
+		# (so that it would work also in the future with larger hashsizes). 
+		# RSA-only is not ideal, but should be acceptable.
+		# See https://security.stackexchange.com/questions/33434
+		encrypted = ""
+		splits=[password[x:x+self.SAFERSABLOCKSIZEWITHOUTBUFFER] for x in range(0,len(password),self.SAFERSABLOCKSIZEWITHOUTBUFFER)]
+		for junk in splits:
+			encrypted += cipher.encrypt(junk)
+		# print "RSA PKCS encryption: plain-size =", len(password), ", encrypted-size =", len(encrypted)
 		return encrypted
 	
 	def decryptPassword(self, encryptedPassword, privateKey):
@@ -111,7 +127,10 @@ class Backup(object):
 		Decrypt RSA-OAEP encrypted password.
 		"""
 		cipher = PKCS1_OAEP.new(privateKey)
-		password = cipher.decrypt(encryptedPassword)
+		password = ""
+		splits=[encryptedPassword[x:x+self.RSABLOCKSIZE] for x in range(0,len(encryptedPassword),self.RSABLOCKSIZE)]
+		for junk in splits:
+			password += cipher.decrypt(junk)
 		
 		return password
-	
+
