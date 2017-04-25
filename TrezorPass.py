@@ -4,6 +4,7 @@ import os.path
 import csv
 
 from PyQt4 import QtGui, QtCore
+from PyQt4.QtCore import QTimer
 from Crypto import Random
 from shutil import copyfile
 
@@ -30,6 +31,10 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 	COMMENTS_IDX = 1 #column of QWidgetItem in whose data we cache decrypted comments
 	# MAXSIZEOFPASSWDANDCOMMENTS limit is arbitrary, could handle larger size, but set to 4K for safety
 	MAXSIZEOFPASSWDANDCOMMENTS = 4096 # artificial limit on the GUI 
+	# clear clipboard after CLIPBOARDTIMEOUTINSEC seconds after copy with ^C; 
+	# if set to 0 then clipboard will not be cleared
+	# Common user mistake is to not click their Trezor after ^C and then be surprised that their clipboard is empty
+	CLIPBOARDTIMEOUTINSEC = 10 # clear clipboard after 10 seconds
 	
 	def __init__(self, pwMap, dbFilename):
 		"""
@@ -65,6 +70,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		shortcut.setContext(QtCore.Qt.WidgetShortcut)
 		
 		self.actionQuit.triggered.connect(self.close)
+		self.actionQuit.setShortcut(QtGui.QKeySequence("Ctrl+Q"))
 		self.actionBackup.triggered.connect(self.saveBackup)
 		self.actionSave.triggered.connect(self.saveDatabase)
 		self.actionSave.setShortcut(QtGui.QKeySequence("Ctrl+S"))
@@ -82,6 +88,11 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 			item = QtGui.QStandardItem(s2q(groupName))
 			self.groupsModel.appendRow(item)
 		self.groupsTree.sortByColumn(0, QtCore.Qt.AscendingOrder)
+
+		self.clipboard = QtGui.QApplication.clipboard()
+
+		self.timer = QTimer()
+		self.timer.timeout.connect(self.clearClipboard)
 	
 	def setModified(self, modified):
 		"""
@@ -432,10 +443,15 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		except CallException:
 			return
 		
-		clipboard = QtGui.QApplication.clipboard()
-		clipboard.setText(s2q(decrypted))
-		
+		self.clipboard.setText(s2q(decrypted))
+		if self.CLIPBOARDTIMEOUTINSEC >  0:
+			self.timer.start(self.CLIPBOARDTIMEOUTINSEC*1000) # cancels previous timer
 		self.cachePassword(row, decrypted)
+
+	def clearClipboard(self):
+		self.clipboard.clear()
+		self.timer.stop() # cancels previous timer
+		print 'Clipboard cleared.'
 		
 	def loadPasswords(self, item):
 		"""Slot that should load items for group that has been clicked on.
@@ -481,6 +497,10 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		
 		Export format is CSV: group, key, password
 		"""
+		msgBox = QtGui.QMessageBox(text="WARNING: During backup/export all passwords will be " + 
+			"written in plaintext to disk. If possible you should consider performing this " +
+			"operation on an offline or air-gapped computer. Be aware of the risks.")
+		msgBox.exec_()
 		dialog = QtGui.QFileDialog(self, "Select backup export file",
 			"", "CVS files (*.csv)")
 		dialog.setAcceptMode(QtGui.QFileDialog.AcceptSave)
