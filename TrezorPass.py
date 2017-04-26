@@ -351,7 +351,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		if self.selectedGroup is None:
 			return
 		group = self.pwMap.groups[self.selectedGroup]
-		dialog = AddPasswordDialog()
+		dialog = AddPasswordDialog(self.pwMap.trezor)
 		if not dialog.exec_():
 			return
 		
@@ -389,7 +389,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		except CallException:
 			return
 		
-		dialog = AddPasswordDialog()
+		dialog = AddPasswordDialog(self.pwMap.trezor)
 		entry = group.entry(row)
 		dialog.keyEdit.setText(s2q(entry[0]))
 		dialog.pwEdit1.setText(s2q(decrypted))
