@@ -8,3 +8,8 @@ trezorlib
 *.pwdb*
 
 Crypto
+
+build/
+dist/
+TrezorPass.spec
+
