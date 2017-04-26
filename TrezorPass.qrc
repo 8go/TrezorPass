@@ -1,0 +1,6 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource>
+    <file>icons/TrezorPass.svg</file>
+    <file>icons/TrezorPass.png</file>
+</qresource>
+</RCC>

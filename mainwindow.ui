@@ -120,8 +120,9 @@
      <string>File</string>
     </property>
     <addaction name="actionSave"/>
-    <addaction name="actionBackup"/>
+    <addaction name="actionExport"/>
     <addaction name="actionImport"/>
+    <addaction name="actionBackup"/>
     <addaction name="actionAbout"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
@@ -137,19 +138,24 @@
    </attribute>
   </widget>
   <widget class="QStatusBar" name="statusBar"/>
-  <action name="actionBackup">
+  <action name="actionExport">
    <property name="text">
-    <string>Backup/Export</string>
+    <string>Export as plaintext CSV file</string>
    </property>
   </action>
   <action name="actionImport">
    <property name="text">
-    <string>Import CSV</string>
+    <string>Import plaintext CSV file</string>
+   </property>
+  </action>
+  <action name="actionBackup">
+   <property name="text">
+    <string>Backup encrypted database file</string>
    </property>
   </action>
   <action name="actionAbout">
    <property name="text">
-    <string>Show Version</string>
+    <string>About</string>
    </property>
   </action>
   <action name="actionQuit">
@@ -159,7 +165,7 @@
   </action>
   <action name="actionSave">
    <property name="text">
-    <string>Save database</string>
+    <string>Save encrypted database</string>
    </property>
   </action>
  </widget>

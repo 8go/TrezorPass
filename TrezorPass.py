@@ -2,9 +2,11 @@
 import sys
 import os.path
 import csv
+import time
 
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import QTimer
+from PyQt4.QtGui import QPixmap
 from Crypto import Random
 from shutil import copyfile
 
@@ -74,8 +76,9 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		
 		self.actionQuit.triggered.connect(self.close)
 		self.actionQuit.setShortcut(QtGui.QKeySequence("Ctrl+Q"))
-		self.actionBackup.triggered.connect(self.saveBackup)
+		self.actionExport.triggered.connect(self.exportCsv)
 		self.actionImport.triggered.connect(self.importCsv)
+		self.actionBackup.triggered.connect(self.saveBackup)
 		self.actionAbout.triggered.connect(self.printAbout)
 		self.actionSave.triggered.connect(self.saveDatabase)
 		self.actionSave.setShortcut(QtGui.QKeySequence("Ctrl+S"))
@@ -501,12 +504,26 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		"""
 		Show window with about and version information.
 		"""
-		msgBox = QtGui.QMessageBox(text="About <b>TrezorPass</b>: <br>TrezorPass is a safe " +
+		msgBox = QtGui.QMessageBox(QtGui.QMessageBox.Information, "About", "About <b>TrezorPass</b>: <br><br>TrezorPass is a safe " +
 			"Password Manager application for people owning a Trezor and preferring to " +
 			"keep their passwords local and not on the cloud. All passwords are " +
 			"stored locally in a single file.<br><br>" +
 			"<b>Version: </b>" + self.TREZORPASSSOFTWAREVERSION + 
 			" from " + self.TREZORPASSSOFTWAREVERSIONTEXT)
+		msgBox.setIconPixmap(QPixmap("icons/TrezorPass.svg"))
+		msgBox.exec_()
+	
+	def saveBackup(self):
+		"""
+		First it saves any pending changes to the pwdb database file. Then it uses an operating system call
+		to copy the file appending a timestamp at the end of the file name. 
+		"""
+		if self.modified:
+			self.saveDatabase()
+		backupFilename = settings.dbFilename + "." + time.strftime('%Y%m%d%H%M%S')
+		copyfile(settings.dbFilename, backupFilename)
+		msgBox = QtGui.QMessageBox(QtGui.QMessageBox.Information, "Backup", "<b>INFO:</b> Backup of the encrypted database file has been created " +
+			"and placed into file " + backupFilename + " (" + str(os.path.getsize(backupFilename)) + " bytes).")
 		msgBox.exec_()
 	
 	def importCsv(self):
@@ -544,7 +561,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		if self.modified:
 			self.saveDatabase()
 		copyfile(settings.dbFilename, settings.dbFilename + ".beforeCsvImport.backup")
-		msgBox = QtGui.QMessageBox(text="WARNING: You are about to import entries from a " + 
+		msgBox = QtGui.QMessageBox(QtGui.QMessageBox.Warning, "Import", "WARNING: You are about to import entries from a " + 
 			"CSV file into your current password-database file. For safety " +
 			"reasons please make a backup copy now.")
 		msgBox.exec_()
@@ -562,7 +579,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 			reader = csv.reader(f, dialect="escaped")
 			groupNames = self.pwMap.groups.keys()
 			for csvEntry in reader:
-				print "Entry:", csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]
+				# print "Entry:", csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]
 				groupName, key, plainPw, plainComments = csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]
 				if groupName not in groupNames:	# groups are unique
 					self.pwMap.addGroup(groupName)
@@ -583,15 +600,15 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 			self.groupsTree.sortByColumn(0, QtCore.Qt.AscendingOrder)
 			self.setModified(True)
 		print "Trezorpass has finished importing CSV file into ", settings.dbFilename, "."
-	
-	def saveBackup(self):
+
+	def exportCsv(self):
 		"""
 		Uses backup key encrypted by Trezor to decrypt all passwords
-		at once and export them.
+		at once and export them into a single paintext CSV file.
 		
 		Export format is CSV: group, key, password, comments
 		"""
-		msgBox = QtGui.QMessageBox(text="WARNING: During backup/export all passwords will be " + 
+		msgBox = QtGui.QMessageBox(QtGui.QMessageBox.Warning, "Export", "<b>WARNING:</b><br>During backup/export all passwords will be " + 
 			"written in plaintext to disk. If possible you should consider performing this " +
 			"operation on an offline or air-gapped computer. Be aware of the risks.")
 		msgBox.exec_()
