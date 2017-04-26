@@ -1,7 +1,7 @@
 # TrezorPass hardware-backed password manager
 
 
-![TrezorPass icon](https://github.com/8go/TrezorPass/blob/master/icons/TrezorPass.svg)
+![TrezorPass icon](https://github.com/8go/TrezorPass/blob/master/icons/TrezorPass.png)
 
 TrezorPass is a PyQt-based password manager that uses the [Trezor](http://www.trezor.io/)
 hardware token to do encryption of passwords. It is similar to KeepassX or
