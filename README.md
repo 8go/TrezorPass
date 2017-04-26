@@ -16,7 +16,7 @@ Note that this is alpha software.
 
 Trezor must be already set up to use passphrase.
 
-Here a sample screenshot:
+Below  a sample screenshot. More screenshots [here](tree/master/screenshots-version-2).
 
 ![Screenshot](https://github.com/8go/TrezorPass/blob/master/screenshots-version-2/trezorpass-screenshot-mainwindow-mainmenu.png)
 
@@ -33,9 +33,9 @@ Here a sample screenshot:
   * upon requesting password decryption, user sees on Trezor's display decryption
     of which password group is requested before confirmation
   * export of passwords to a CSV file is possible, also requires explicit button confirmation
-  * import of passwords from a CSV file is possible, allowing migratin from other password
+  * import of passwords from a CSV file is possible, allowing migration from other password
     managers
-  * a backup function for backing up the encrypted password database is provided
+  * a backup function for backing up the encrypted password database is provided for convenience
   * 10 seconds after copying a password to the clipboard the clipboard is automatically cleared again
   * if Trezor is lost, recovery from seed on a new Trezor and using the same
     password will also recover encrypted password database (in theory recovery
