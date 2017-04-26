@@ -121,6 +121,8 @@
     </property>
     <addaction name="actionSave"/>
     <addaction name="actionBackup"/>
+    <addaction name="actionImport"/>
+    <addaction name="actionAbout"/>
     <addaction name="separator"/>
     <addaction name="actionQuit"/>
    </widget>
@@ -138,6 +140,16 @@
   <action name="actionBackup">
    <property name="text">
     <string>Backup/Export</string>
+   </property>
+  </action>
+  <action name="actionImport">
+   <property name="text">
+    <string>Import CSV</string>
+   </property>
+  </action>
+  <action name="actionAbout">
+   <property name="text">
+    <string>Show Version</string>
    </property>
   </action>
   <action name="actionQuit">

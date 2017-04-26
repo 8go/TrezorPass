@@ -35,6 +35,9 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 	# if set to 0 then clipboard will not be cleared
 	# Common user mistake is to not click their Trezor after ^C and then be surprised that their clipboard is empty
 	CLIPBOARDTIMEOUTINSEC = 10 # clear clipboard after 10 seconds
+
+	TREZORPASSSOFTWAREVERSION = "2.0"
+	TREZORPASSSOFTWAREVERSIONTEXT = "April 2017"
 	
 	def __init__(self, pwMap, dbFilename):
 		"""
@@ -72,6 +75,8 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		self.actionQuit.triggered.connect(self.close)
 		self.actionQuit.setShortcut(QtGui.QKeySequence("Ctrl+Q"))
 		self.actionBackup.triggered.connect(self.saveBackup)
+		self.actionImport.triggered.connect(self.importCsv)
+		self.actionAbout.triggered.connect(self.printAbout)
 		self.actionSave.triggered.connect(self.saveDatabase)
 		self.actionSave.setShortcut(QtGui.QKeySequence("Ctrl+S"))
 		
@@ -365,7 +370,8 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		plainPw = q2s(dialog.pw1())
 		plainComments = q2s(dialog.comments())
 		if len(plainPw) + len(plainComments) > self.MAXSIZEOFPASSWDANDCOMMENTS:
-			msgBox = QtGui.QMessageBox(text="Password and/or comments too long. Combined they must not be larger than " + str(self.MAXSIZEOFPASSWDANDCOMMENTS) + ".")
+			msgBox = QtGui.QMessageBox(text="Password and/or comments too long. " +
+				"Combined they must not be larger than " + str(self.MAXSIZEOFPASSWDANDCOMMENTS) + ".")
 			msgBox.exec_()
 			return
 
@@ -379,7 +385,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		
 		self.passwordTable.resizeRowsToContents()
 		self.setModified(True)
-	
+
 	def editPassword(self, item):
 		row = self.passwordTable.row(item)
 		group = self.pwMap.groups[self.selectedGroup]
@@ -408,7 +414,8 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		plainPw = q2s(dialog.pw1())
 		plainComments = q2s(dialog.comments())
 		if len(plainPw) + len(plainComments) > self.MAXSIZEOFPASSWDANDCOMMENTS:
-			msgBox = QtGui.QMessageBox(text="Password and/or comments too long. Combined they must not be larger than " + str(self.MAXSIZEOFPASSWDANDCOMMENTS) + ".")
+			msgBox = QtGui.QMessageBox(text="Password and/or comments too long. " +
+				"Combined they must not be larger than " + str(self.MAXSIZEOFPASSWDANDCOMMENTS) + ".")
 			msgBox.exec_()
 			return
 
@@ -489,13 +496,100 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		"""
 		self.groupsFilter.setFilterFixedString(substring)
 		self.groupsTree.sortByColumn(0, QtCore.Qt.AscendingOrder)
+
+	def printAbout(self):
+		"""
+		Show window with about and version information.
+		"""
+		msgBox = QtGui.QMessageBox(text="About <b>TrezorPass</b>: <br>TrezorPass is a safe " +
+			"Password Manager application for people owning a Trezor and preferring to " +
+			"keep their passwords local and not on the cloud. All passwords are " +
+			"stored locally in a single file.<br><br>" +
+			"<b>Version: </b>" + self.TREZORPASSSOFTWAREVERSION + 
+			" from " + self.TREZORPASSSOFTWAREVERSIONTEXT)
+		msgBox.exec_()
+	
+	def importCsv(self):
+		"""
+		Read a properly formated CSV file from disk
+		and add its contents to the current entries. 
+		
+		Import format in CSV should be : group, key, password, comments
+
+		There is no error checking, so be extra careful. 
+		
+		Make a backup first.
+
+		Entries from CSV will be *added* to existing pwdb. If this is not desired 
+		create an empty pwdb file first.
+
+		GroupNames are unique, so if a groupname exists then 
+		key-password-comments tuples are added to the already existing group.
+		If a group name does not exist, a new group is created and the
+		key-password-comments tuples are added to the newly created group.
+
+		Keys are not unique. So key-password-comments are always added. 
+		If a key with a given name existed before and the CSV file contains a 
+		key with the same name, then the key-password-comments is added and
+		after the import the given group has 2 keys with the same name. 
+		Both keys exist then, the old from before the import, and the new one from the import.
+
+		Examples of valid CSV file format: Some example lines
+		First Bank account,login,myloginname,	# no comment
+		foo@gmail.com,2-factor-authentication key,abcdef12345678,seed to regenerate 2FA codes	# with comment
+		foo@gmail.com,recovery phrase,"passwd with 2 commas , ,",	# with comma
+		foo@gmail.com,large multi-line comments,,"first line, some comma, 
+		second line"
+		"""
+		if self.modified:
+			self.saveDatabase()
+		copyfile(settings.dbFilename, settings.dbFilename + ".beforeCsvImport.backup")
+		msgBox = QtGui.QMessageBox(text="WARNING: You are about to import entries from a " + 
+			"CSV file into your current password-database file. For safety " +
+			"reasons please make a backup copy now.")
+		msgBox.exec_()
+		dialog = QtGui.QFileDialog(self, "Select import CSV file",
+			"", "CVS files (*.csv)")
+		dialog.setAcceptMode(QtGui.QFileDialog.AcceptOpen)
+		
+		res = dialog.exec_()
+		if not res:
+			return
+
+		fname = q2s(dialog.selectedFiles()[0])
+		with file(fname, "r") as f:
+			csv.register_dialect("escaped", doublequote=False, escapechar='\\')
+			reader = csv.reader(f, dialect="escaped")
+			groupNames = self.pwMap.groups.keys()
+			for csvEntry in reader:
+				print "Entry:", csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]
+				groupName, key, plainPw, plainComments = csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]
+				if groupName not in groupNames:	# groups are unique
+					self.pwMap.addGroup(groupName)
+					item = QtGui.QStandardItem(s2q(groupName))
+					self.groupsModel.appendRow(item)
+
+				if len(plainPw) + len(plainComments) > self.MAXSIZEOFPASSWDANDCOMMENTS:
+					msgBox = QtGui.QMessageBox(text="Password and/or comments too long. " +
+						"Combined they must not be larger than " + str(self.MAXSIZEOFPASSWDANDCOMMENTS) + ".")
+					msgBox.exec_()
+					return
+				group = self.pwMap.groups[groupName]
+				plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
+				encPw = self.pwMap.encryptPassword(plainPwComments, groupName)
+				bkupPw = self.pwMap.backupKey.encryptPassword(plainPwComments)
+				group.addEntry(key, encPw, bkupPw) # keys are not unique, multiple items with same key are allowed
+
+			self.groupsTree.sortByColumn(0, QtCore.Qt.AscendingOrder)
+			self.setModified(True)
+		print "Trezorpass has finished importing CSV file into ", settings.dbFilename, "."
 	
 	def saveBackup(self):
 		"""
 		Uses backup key encrypted by Trezor to decrypt all passwords
 		at once and export them.
 		
-		Export format is CSV: group, key, password
+		Export format is CSV: group, key, password, comments
 		"""
 		msgBox = QtGui.QMessageBox(text="WARNING: During backup/export all passwords will be " + 
 			"written in plaintext to disk. If possible you should consider performing this " +
@@ -789,6 +883,5 @@ pwMap.encryptedBackupKey = ""
 mainWindow = MainWindow(pwMap, settings.dbFilename)
 mainWindow.show()
 retCode = app.exec_()
-
 
 sys.exit(retCode)
