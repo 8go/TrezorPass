@@ -1,11 +1,17 @@
 from PyQt4 import QtGui, QtCore
 
+import os
+import base64
+import hashlib
+
 from ui_addgroup_dialog import Ui_AddGroupDialog
 from ui_trezor_passphrase_dialog import Ui_TrezorPassphraseDialog
 from ui_add_password_dialog import Ui_AddPasswordDialog
 from ui_initialize_dialog import Ui_InitializeDialog
 from ui_enter_pin_dialog import Ui_EnterPinDialog
 from ui_trezor_chooser_dialog import Ui_TrezorChooserDialog
+
+from encoding import q2s, s2q
 
 class AddGroupDialog(QtGui.QDialog, Ui_AddGroupDialog):
 	
@@ -52,12 +58,14 @@ class TrezorPassphraseDialog(QtGui.QDialog, Ui_TrezorPassphraseDialog):
 
 class AddPasswordDialog(QtGui.QDialog, Ui_AddPasswordDialog):
 	
-	def __init__(self):
+	def __init__(self, trezor):
 		QtGui.QDialog.__init__(self)
 		self.setupUi(self)
 		self.pwEdit1.textChanged.connect(self.validatePw)
 		self.pwEdit2.textChanged.connect(self.validatePw)
 		self.showHideButton.clicked.connect(self.switchPwVisible)
+		self.generatePasswordButton.clicked.connect(self.generatePassword)
+		self.trezor = trezor
 	
 	def key(self):
 		return self.keyEdit.text()
@@ -86,6 +94,20 @@ class AddPasswordDialog(QtGui.QDialog, Ui_AddPasswordDialog):
 			
 		self.pwEdit1.setEchoMode(newMode)
 		self.pwEdit2.setEchoMode(newMode)
+	
+	def generatePassword(self):
+	        trezor_entropy = self.trezor.get_entropy(32)
+		urandom_entropy = os.urandom(32)
+		passwdBin = hashlib.sha256(trezor_entropy + urandom_entropy).digest()
+		# base85 encoding not yet implemented in Python 2.7, (requires Python 3+)
+		# so we use base64 encoding
+		# remove the base64 buffer char =, remove easily confused chars 0 and O, as well as I and l
+		passwdB64 = base64.urlsafe_b64encode(passwdBin).translate(None, '=0OIl')
+		# print "bin =", passwdBin, ", base =", passwdB64, " binlen =", len(passwdBin), "baselen =", len(passwdB64)
+		# instead of setting the values, we concatenate them to the existing values
+		# This way, by clicking the "Generate password" button one can create an arbitrary long random password.
+		self.pwEdit1.setText(self.pw1() + s2q(passwdB64))
+		self.pwEdit2.setText(self.pw2() + s2q(passwdB64))
 		
 class InitializeDialog(QtGui.QDialog, Ui_InitializeDialog):
 	
