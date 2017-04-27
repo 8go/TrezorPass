@@ -205,14 +205,14 @@ This string is stored in the QQtCore.QSettings.
 * Step 3: import this CSV file into TrezorPass. All entries found in the CSV file will be added to the existing database. 
 * Examples of a valid CSV file format for import: Some sample lines
 
-'''
+```
 First Bank account,login,myloginname,
 foo@gmail.com,2-factor-authentication key,abcdef12345678,seed to regenerate 2FA codes
 foo@gmail.com,recovery phrase,"passwd with 2 commas , ,",	
 foo@gmail.com,large multi-line comments,,"first line, some comma, 
 second line"
 phone,PIN,1234,my phone PIN
-'''
+```
 
 More details [here](https://github.com/8go/TrezorPass/pull/6).
 - - -
