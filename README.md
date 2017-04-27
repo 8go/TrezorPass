@@ -1,4 +1,4 @@
-# TrezorPass hardware-backed password manager
+# TrezorPass: a hardware-backed password manager
 
 
 ![TrezorPass icon](icons/TrezorPass.png)
@@ -144,7 +144,7 @@ This string is stored in the QQtCore.QSettings.
 - - -
 **Question:** Does TrezorPass call home? Send any information anywhere? 
 
-**Answer:** No. Never. You can also use it on an air-gapped computer if you want to. It does not use any network calls at any time.
+**Answer:** No. Never. You can also use it on an air-gapped computer if you want to. It does not use any network calls at any time. It does not update itself automatically.
 - - -
 **Question:** Does TrezorPass have a backdoor? 
 
@@ -200,7 +200,7 @@ This string is stored in the QQtCore.QSettings.
 
 **Answer:** Yes. But it is not a one-click or two-click affair.
 
-* Step 1: export your passwords from the original password manager to a plaintext CSV or plain text file. You might want to do this on a secure or air-gapped computer if you have one available.
+* Step 1: export your passwords from the original password manager to a plaintext CSV or plain text file. You might want to do this on a secure or air-gapped computer or with a [LiveDvd OS](https://en.wikipedia.org/wiki/Live_DVD) if you have one available.
 * Step 2: Modify the CSV file mannually or via script so that it follows the required TrezorPass CSV import standard. The required TrezorPass CSV import standard is very simple: 4-element-tuplets separated by comma (,) and possibly quoted ("). The 4-element tuplets are: group name, key, password, comments
 * Step 3: import this CSV file into TrezorPass. All entries found in the CSV file will be added to the existing database. 
 * Examples of a valid CSV file format for import: Some sample lines
@@ -215,6 +215,15 @@ phone,PIN,1234,my phone PIN
 ```
 
 More details [here](https://github.com/8go/TrezorPass/pull/6).
+- - -
+**Question:** Am I locked into TrezorPass? Can I migrate from TrezorPass to another password manager such as KeePass or [Pass](https://www.passwordstore.org/) or others?
+
+**Answer:** No, you are not locked in. Yes, you can migrate from TrezorPass to other password managers. But it is not a one-click or two-click affair.
+
+* Step 1: export your passwords from TrezorPass to a plaintext CSV file. 
+* Step 2: modify this CSV file according to the requirements of your other password manager
+* Step 3: import the modified CSV file into your other password manager
+* You might want to do all these 3 steps on a secure or air-gapped computer or with a [LiveDvd OS](https://en.wikipedia.org/wiki/Live_DVD) if you have one available.
 - - -
 **Question:** What if I lose my password database file?
 
