@@ -6,12 +6,22 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>359</width>
+    <width>400</width>
     <height>300</height>
    </rect>
   </property>
+  <property name="maximumSize">
+   <size>
+    <width>500</width>
+    <height>400</height>
+   </size>
+  </property>
   <property name="windowTitle">
    <string>Enter PIN</string>
+  </property>
+  <property name="windowIcon">
+   <iconset>
+    <normaloff>icons/TrezorPass.svg</normaloff>icons/TrezorPass.svg</iconset>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>

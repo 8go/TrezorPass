@@ -1,13 +1,13 @@
 # TrezorPass: a hardware-backed password manager
 
 
-![TrezorPass icon](icons/TrezorPass.png)
+![TrezorPass icon](icons/TrezorPass.92x128.png)
 
 TrezorPass is a PyQt-based password manager that uses the [Trezor](http://www.trezor.io/)
 hardware token to do encryption of passwords. It is similar to KeepassX or
 kwalletmanager in function. It can store passwords, logons, URLs, PINs, comments, etc.
 
-The Password database is stored in encrypted form in a single file on computer. 
+The Password database is stored in encrypted form in a single file on computer.
 No access to internet is required for its use. It allows an unlimited
 count of password entries to be stored and enables the possibility of recovery
 if your original Trezor is misplaced (mnemonic and passphrase are required to recover).
@@ -16,20 +16,20 @@ Note that this is alpha software.
 
 Trezor must be already set up to use passphrase.
 
-Below  a sample screenshot. More screenshots [here](../../tree/master/screenshots-version-2).
+Below  a sample screenshot. More screenshots [here](../../tree/master/screenshots).
 
-![Screenshot](screenshots-version-2/trezorpass-screenshot-mainwindow-mainmenu.png)
+![Screenshot](screenshots/trezorpass-screenshot-mainwindow-mainmenu-v3.png)
 
 # Security features
 
-  * **secure**: even in the worst case with a virus on your computer, that has access to your 
+  * **secure**: even in the worst case with a virus on your computer, that has access to your
     keyboard, your applications and your memory, only the passwords
-    you are copying-and-pasting can be stolen. All unused passwords 
+    you are copying-and-pasting can be stolen. All unused passwords
     remain safely secured by Trezor
   * works offline, no cloud service required
   * portable, stores all information in a single file
   * symmetric password encryption key never leaves the Trezor
-  * button confirmation on Trezor is required to activate decryption of a password 
+  * button confirmation on Trezor is required to activate decryption of a password
   * upon requesting password decryption, user sees on Trezor's display decryption
     of which password group is requested before confirmation
   * export of passwords to a CSV file is possible, also requires explicit button confirmation
@@ -65,22 +65,46 @@ Run:
 
     python TrezorPass.py
 
+On rare occasions one of the command line arguments might become useful:
+
+```
+TrezorPass.py [-v] [-h] [-l <level>] [-p <passphrase>] [[-d] -f <pwdbfile>]
+    -v, --verion
+            print the version number
+    -h, --help
+            print short help text
+    -l, --logging
+            set logging level, integer from 1 to 5, 1=full logging, 5=no logging
+    -p, --passphrase
+            master passphrase used for Trezor.
+            It is recommended that you do not use this command line option
+            but rather give the passphrase through a small window interaction.
+    -f, --pwdbfile
+            name of an existing password file to use instead of the default one;
+            must be a valid TrezorPass password file
+    -d, --setdefault
+            set the file provided with `-f` as default, i.e. this will
+            be the password file opened from now on
+
+    All arguments are optional. Usually none needs to be used.
+```
+
 # How export to CSV works
 
 Each password is encrypted and stored twice. Once with symmetric AES-CBC function
 of Trezor that always requires button confirmation on device to decrypt. Second
 encryption is done to public RSA key, whose private counterpart is encrypted
 with Trezor. Export requires private RSA to be decrypted and then used to decrypt
-the passwords. The RSA key is managed internally, so that you do not need to 
-worry about it. 
+the passwords. The RSA key is managed internally, so that you do not need to
+worry about it.
 
 # FAQ - Frequently Asked Questions
 
 **Question:** I read something about an RSA key somewhere? Do I need to create it? Can I use my own? Where is it? How many bits is it?
 
-**Answer:** 
+**Answer:**
 
-* No, you do not need to create it, it is created automatically for you. 
+* No, you do not need to create it, it is created automatically for you.
 * No, you cannot use your own existing RSA key.
 * It is created and stored Trezor-encrypted in the pwdb database password file.
 * It is a 4096-bit RSA keypair.
@@ -95,58 +119,58 @@ worry about it.
 - - -
 **Question:** Is there a config file or a settings file?
 
-**Answer:** No, there are no config and no settings files. The only vlue stored outside of the pwdb password database file is its filename (full path). 
+**Answer:** No, there are no config and no settings files. The only vlue stored outside of the pwdb password database file is its filename (full path).
 This string is stored in the QQtCore.QSettings.
 - - -
-**Question:** Does TrezorPass require online connectivity, Internet access? 
+**Question:** Does TrezorPass require online connectivity, Internet access?
 
 **Answer:** No.
 - - -
-**Question:** Does TrezorPass require a Google, DropBox or similar cloud service provider account? 
+**Question:** Does TrezorPass require a Google, DropBox or similar cloud service provider account?
 
 **Answer:** No.
 - - -
-**Question:** How many files are there? 
+**Question:** How many files are there?
 
 **Answer:** For the data there is always just one file, the pwdb password database file. For the TrezorPass executable it depends. At best there is only a single executable. This single-file-executable is provided for you for Linux 64-bit. On other platforms you can create it yourself with [pyinstaller](www.pyinstaller.org) and [pyinstaller](https://github.com/pyinstaller/pyinstaller/wiki). So, with 2 files (one executable and one datafile) you can do everything.
 - - -
-**Question:** In which language is TrezorPass written? 
+**Question:** In which language is TrezorPass written?
 
 **Answer:** [Python](https://www.python.org/).
 - - -
-**Question:** Do I need to have a [Trezor](https://www.trezor.io/) in order to use TrezorPass? 
+**Question:** Do I need to have a [Trezor](https://www.trezor.io/) in order to use TrezorPass?
 
 **Answer:** Yes, a Trezor is required.
 - - -
-**Question:** How big is the single-file-executable for Linux? 
+**Question:** How big is the single-file-executable for Linux?
 
 **Answer:** Currently around 23M.
 - - -
-**Question:** How many passwords can I store in TrezorPass? 
+**Question:** How many passwords can I store in TrezorPass?
 
 **Answer:** For practical purposes, unlimited. Let's just say "thousands".
 - - -
-**Question:** Is there a limit on the password size or comment size? 
+**Question:** Is there a limit on the password size or comment size?
 
 **Answer:** Currently, the password length is limited to 512 characters and the password+comments to 4096 characters. You can increment these limits in the software if you really need larger values.
 - - -
-**Question:** Can I see the source code? 
+**Question:** Can I see the source code?
 
 **Answer:** Yes, this is an open source software project. You can find and download all source code from [Github](https://github.com/hiviah/TrezorPass) or any of its forks.
 - - -
-**Question:** Does the TrezorPass contain ads? 
+**Question:** Does the TrezorPass contain ads?
 
 **Answer:** No.
 - - -
-**Question:** Does the TrezorPass cost money? 
+**Question:** Does the TrezorPass cost money?
 
 **Answer:** No. It is free, libre, and open source.
 - - -
-**Question:** Does TrezorPass call home? Send any information anywhere? 
+**Question:** Does TrezorPass call home? Send any information anywhere?
 
 **Answer:** No. Never. You can also use it on an air-gapped computer if you want to. It does not use any network calls at any time. It does not update itself automatically.
 - - -
-**Question:** Does TrezorPass have a backdoor? 
+**Question:** Does TrezorPass have a backdoor?
 
 **Answer:** No. Read the source code to convince yourself.
 - - -
@@ -154,7 +178,7 @@ This string is stored in the QQtCore.QSettings.
 
 **Answer:** Download the source from [Github](https://github.com/hiviah/TrezorPass) and inspect the souce code for viruses. Don't download it from unreliable sources.
 - - -
-**Question:** How can someone steal **all** my passwords? 
+**Question:** How can someone steal **all** my passwords?
 
 **Answer:** In order to get access to all your passwords one would need to a) steal your physical Trezor device, and b) steal your TrezorPass password database file, and) know or steal your Trezor passphrase for TrezorPass (=TrezorPass master passphrase) and d) know or steal your Trezor PIN code. Alternatively, one would need to a) steal your 24 Trezor seed words, and b) steal your TrezorPass password database file, and) know or steal your Trezor passphrase for TrezorPass (=TrezorPass master passphrase).
 - - -
@@ -184,12 +208,12 @@ This string is stored in the QQtCore.QSettings.
 - - -
 **Question:** Can I use TrezorPass on multiple computers? Can I sync it on multiple devices/computers?
 
-**Answer:** Yes. There are many ways to do with various degrees of convenience. 
+**Answer:** Yes. There are many ways to do with various degrees of convenience.
 
-* One solution might be to carry the password database always with you on an SD card or USB stick. 
+* One solution might be to carry the password database always with you on an SD card or USB stick.
 * Another simple way is just to copy the software and the password database to 2 or more computers/devices. That is static and the password database is not synchronized.
 * Imagine you have a home network or a small office network. You might place the password database file to a shared disk, a shared server, a shared NAS or similar. Thereby all computers/devices on this local network have access to the same password database. All computers are in sync because there is only a single shared copy of the password database. In this scenario TrezorPass should be used by only one person at a time. Since you usually have only one Trezor that is usually no problem.
-* You can sync the password database yourself between various computers/devices on one or multiple networks. On Linux you might use rsync or a multitude of other solutions. 
+* You can sync the password database yourself between various computers/devices on one or multiple networks. On Linux you might use rsync or a multitude of other solutions.
 * You can sync the password database with known cloud service providers. E.g. you can use DropBox to sync the password database between all your devices. DropBox cannot read your database as it is encrypted. You can also give the password database some unassuming name like "photo.jpg" if you do not want to draw attention.
 - - -
 **Question:** Can I contribute to the project?
@@ -202,14 +226,14 @@ This string is stored in the QQtCore.QSettings.
 
 * Step 1: export your passwords from the original password manager to a plaintext CSV or plain text file. You might want to do this on a secure or air-gapped computer or with a [LiveDvd OS](https://en.wikipedia.org/wiki/Live_DVD) if you have one available.
 * Step 2: Modify the CSV file mannually or via script so that it follows the required TrezorPass CSV import standard. The required TrezorPass CSV import standard is very simple: 4-element-tuplets separated by comma (,) and possibly quoted ("). The 4-element tuplets are: group name, key, password, comments
-* Step 3: import this CSV file into TrezorPass. All entries found in the CSV file will be added to the existing database. 
+* Step 3: import this CSV file into TrezorPass. All entries found in the CSV file will be added to the existing database.
 * Examples of a valid CSV file format for import: Some sample lines
 
 ```
 First Bank account,login,myloginname,
 foo@gmail.com,2-factor-authentication key,abcdef12345678,seed to regenerate 2FA codes
-foo@gmail.com,recovery phrase,"passwd with 2 commas , ,",	
-foo@gmail.com,large multi-line comments,,"first line, some comma, 
+foo@gmail.com,recovery phrase,"passwd with 2 commas , ,",
+foo@gmail.com,large multi-line comments,,"first line, some comma,
 second line"
 phone,PIN,1234,my phone PIN
 ```
@@ -220,7 +244,7 @@ More details [here](https://github.com/8go/TrezorPass/pull/6).
 
 **Answer:** No, you are not locked in. Yes, you can migrate from TrezorPass to other password managers. But it is not a one-click or two-click affair.
 
-* Step 1: export your passwords from TrezorPass to a plaintext CSV file. 
+* Step 1: export your passwords from TrezorPass to a plaintext CSV file.
 * Step 2: modify this CSV file according to the requirements of your other password manager
 * Step 3: import the modified CSV file into your other password manager
 * You might want to do all these 3 steps on a secure or air-gapped computer or with a [LiveDvd OS](https://en.wikipedia.org/wiki/Live_DVD) if you have one available.

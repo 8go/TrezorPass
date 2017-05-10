@@ -3,6 +3,7 @@ import sys
 import os.path
 import csv
 import time
+import logging
 
 from PyQt4 import QtGui, QtCore
 from PyQt4.QtCore import QTimer
@@ -17,6 +18,8 @@ from trezorlib import messages_pb2 as proto
 
 from ui_mainwindow import Ui_MainWindow
 
+import basics
+import processing
 import password_map
 from encoding import q2s, s2q
 from backup import Backup
@@ -29,51 +32,52 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 
 	KEY_IDX = 0 #column where key is shown in password table
 	PASSWORD_IDX = 1 #column where password is shown in password table
-	CACHE_IDX = 0 #column of QWidgetItem in whose data we cache decrypted passwords
-	COMMENTS_IDX = 1 #column of QWidgetItem in whose data we cache decrypted comments
+	COMMENTS_IDX = 2 #column where comments is shown in password table
+	NOOFPASSWDTABLECOLUMNS = 3 # 3 columns: key + value/passwd/secret + comments
+	PASSWORDCACHE_IDX = 0 #column of QWidgetItem in whose data we cache decrypted passwords
+	COMMENTSCACHE_IDX = 1 #column of QWidgetItem in whose data we cache decrypted comments
 	# MAXSIZEOFPASSWDANDCOMMENTS limit is arbitrary, could handle larger size, but set to 4K for safety
-	MAXSIZEOFPASSWDANDCOMMENTS = 4096 # artificial limit on the GUI 
-	# clear clipboard after CLIPBOARDTIMEOUTINSEC seconds after copy with ^C; 
+	MAXSIZEOFPASSWDANDCOMMENTS = 4096 # artificial limit on the GUI
+	# clear clipboard after CLIPBOARDTIMEOUTINSEC seconds after copy with ^C;
 	# if set to 0 then clipboard will not be cleared
 	# Common user mistake is to not click their Trezor after ^C and then be surprised that their clipboard is empty
 	CLIPBOARDTIMEOUTINSEC = 10 # clear clipboard after 10 seconds
 
-	TREZORPASSSOFTWAREVERSION = "2.0"
-	TREZORPASSSOFTWAREVERSIONTEXT = "April 2017"
-	
-	def __init__(self, pwMap, dbFilename):
+	def __init__(self, pwMap, settings, logger, dbFilename):
 		"""
 		@param pwMap: a PasswordMap instance with encrypted passwords
 		@param dbFilename: file name for saving pwMap
 		"""
 		QtGui.QMainWindow.__init__(self)
 		self.setupUi(self)
-		
+
+		self.logger = logger
+		self.settings = settings
 		self.pwMap = pwMap
 		self.selectedGroup = None
 		self.modified = False #modified flag "Save?" question on exit
 		self.dbFilename = dbFilename
-		
+
 		self.groupsModel = QtGui.QStandardItemModel()
 		self.groupsModel.setHorizontalHeaderLabels(["Password group"])
 		self.groupsFilter = QtGui.QSortFilterProxyModel()
 		self.groupsFilter.setSourceModel(self.groupsModel)
-		
+
 		self.groupsTree.setModel(self.groupsFilter)
 		self.groupsTree.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 		self.groupsTree.customContextMenuRequested.connect(self.showGroupsContextMenu)
 		self.groupsTree.clicked.connect(self.loadPasswordsBySelection)
 		self.groupsTree.selectionModel().selectionChanged.connect(self.loadPasswordsBySelection)
 		self.groupsTree.setSortingEnabled(True)
-		
+
 		self.passwordTable.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
 		self.passwordTable.customContextMenuRequested.connect(self.showPasswdContextMenu)
 		self.passwordTable.setSelectionBehavior(QtGui.QAbstractItemView.SelectRows)
 		self.passwordTable.setSelectionMode(QtGui.QAbstractItemView.SingleSelection)
-		
+
 		shortcut = QtGui.QShortcut(QtGui.QKeySequence("Ctrl+C"), self.passwordTable, self.copyPasswordFromSelection)
 		shortcut.setContext(QtCore.Qt.WidgetShortcut)
-		
+
 		self.actionQuit.triggered.connect(self.close)
 		self.actionQuit.setShortcut(QtGui.QKeySequence("Ctrl+Q"))
 		self.actionExport.triggered.connect(self.exportCsv)
@@ -82,15 +86,17 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		self.actionAbout.triggered.connect(self.printAbout)
 		self.actionSave.triggered.connect(self.saveDatabase)
 		self.actionSave.setShortcut(QtGui.QKeySequence("Ctrl+S"))
-		
+
 		headerKey = QtGui.QTableWidgetItem("Key");
-		headerValue = QtGui.QTableWidgetItem("Value");
-		self.passwordTable.setColumnCount(2)
+		headerValue = QtGui.QTableWidgetItem("Password/Value");
+		headerComments = QtGui.QTableWidgetItem("Comments");
+		self.passwordTable.setColumnCount(self.NOOFPASSWDTABLECOLUMNS)
 		self.passwordTable.setHorizontalHeaderItem(self.KEY_IDX, headerKey)
 		self.passwordTable.setHorizontalHeaderItem(self.PASSWORD_IDX, headerValue)
-		
+		self.passwordTable.setHorizontalHeaderItem(self.COMMENTS_IDX, headerComments)
+
 		self.searchEdit.textChanged.connect(self.filterGroups)
-		
+
 		groupNames = self.pwMap.groups.keys()
 		for groupName in groupNames:
 			item = QtGui.QStandardItem(s2q(groupName))
@@ -101,7 +107,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 
 		self.timer = QTimer()
 		self.timer.timeout.connect(self.clearClipboard)
-	
+
 	def setModified(self, modified):
 		"""
 		Sets the modified flag so that user is notified when exiting
@@ -109,11 +115,11 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		"""
 		self.modified = modified
 		self.setWindowTitle("TrezorPass" + "*" * int(self.modified))
-	
+
 	def showGroupsContextMenu(self, point):
 		"""
 		Show context menu for group management.
-		
+
 		@param point: point in self.groupsTree where click occured
 		"""
 		self.addGroupMenu = QtGui.QMenu(self)
@@ -121,240 +127,267 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		deleteGroupAction = QtGui.QAction('Delete group', self)
 		self.addGroupMenu.addAction(newGroupAction)
 		self.addGroupMenu.addAction(deleteGroupAction)
-		
+
 		#disable deleting if no point is clicked on
 		proxyIdx = self.groupsTree.indexAt(point)
 		itemIdx = self.groupsFilter.mapToSource(proxyIdx)
 		item = self.groupsModel.itemFromIndex(itemIdx)
 		if item is None:
 			deleteGroupAction.setEnabled(False)
-		
+
 		action = self.addGroupMenu.exec_(self.groupsTree.mapToGlobal(point))
-		
+
 		if action == newGroupAction:
 			self.createGroup()
 		elif action == deleteGroupAction:
 			self.deleteGroup(item)
-			
-	
+
+
 	def showPasswdContextMenu(self, point):
 		"""
 		Show context menu for password management
-		
+
 		@param point: point in self.passwordTable where click occured
 		"""
 		self.passwdMenu = QtGui.QMenu(self)
 		showPasswordAction = QtGui.QAction('Show password', self)
 		copyPasswordAction = QtGui.QAction('Copy password', self)
 		copyPasswordAction.setShortcut(QtGui.QKeySequence( "Ctrl+C"))
+		showCommentsAction = QtGui.QAction('Show comments', self)
+		copyCommentsAction = QtGui.QAction('Copy comments', self)
 		newItemAction = QtGui.QAction('New item', self)
 		deleteItemAction = QtGui.QAction('Delete item', self)
 		editItemAction = QtGui.QAction('Edit item', self)
 		self.passwdMenu.addAction(showPasswordAction)
 		self.passwdMenu.addAction(copyPasswordAction)
 		self.passwdMenu.addSeparator()
+		self.passwdMenu.addAction(showCommentsAction)
+		self.passwdMenu.addAction(copyCommentsAction)
+		self.passwdMenu.addSeparator()
 		self.passwdMenu.addAction(newItemAction)
 		self.passwdMenu.addAction(deleteItemAction)
 		self.passwdMenu.addAction(editItemAction)
-		
+
 		#disable creating if no group is selected
 		if self.selectedGroup is None:
 			newItemAction.setEnabled(False)
-		
+
 		#disable deleting if no point is clicked on
 		item = self.passwordTable.itemAt(point.x(), point.y())
 		if item is None:
 			deleteItemAction.setEnabled(False)
 			showPasswordAction.setEnabled(False)
 			copyPasswordAction.setEnabled(False)
+			showCommentsAction.setEnabled(False)
+			copyCommentsAction.setEnabled(False)
 			editItemAction.setEnabled(False)
-		
+
 		action = self.passwdMenu.exec_(self.passwordTable.mapToGlobal(point))
 		if action == newItemAction:
 			self.createPassword()
 		elif action == deleteItemAction:
 			self.deletePassword(item)
-		elif action == showPasswordAction:
-			self.showPassword(item)
 		elif action == editItemAction:
 			self.editPassword(item)
 		elif action == copyPasswordAction:
 			self.copyPasswordFromItem(item)
-			
-	
+		elif action == showPasswordAction:
+			self.showPassword(item)
+		elif action == copyCommentsAction:
+			self.copyCommentsFromItem(item)
+		elif action == showCommentsAction:
+			self.showComments(item)
+
+
 	def createGroup(self):
 		"""Slot to create a password group.
 		"""
 		dialog = AddGroupDialog(self.pwMap.groups)
 		if not dialog.exec_():
 			return
-		
+
 		groupName = dialog.newGroupName()
-		
+
 		newItem = QtGui.QStandardItem(groupName)
 		self.groupsModel.appendRow(newItem)
 		self.pwMap.addGroup(q2s(groupName))
-		
+
 		#make new item selected to save a few clicks
 		itemIdx = self.groupsModel.indexFromItem(newItem)
 		proxyIdx = self.groupsFilter.mapFromSource(itemIdx)
 		self.groupsTree.selectionModel().select(proxyIdx,
 			QtGui.QItemSelectionModel.ClearAndSelect | QtGui.QItemSelectionModel.Rows)
 		self.groupsTree.sortByColumn(0, QtCore.Qt.AscendingOrder)
-		
+
 		#Make item's passwords loaded so new key-value entries can be created
 		#right away - better from UX perspective.
 		self.loadPasswords(newItem)
-		
+
 		self.setModified(True)
 
 	def deleteGroup(self, item):
 		msgBox = QtGui.QMessageBox(text="Are you sure about delete?")
 		msgBox.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
 		res = msgBox.exec_()
-		
+
 		if res != QtGui.QMessageBox.Yes:
 			return
-		
+
 		name = q2s(item.text())
 		self.selectedGroup = None
 		del self.pwMap.groups[name]
-		
+
 		itemIdx = self.groupsModel.indexFromItem(item)
 		self.groupsModel.takeRow(itemIdx.row())
 		self.passwordTable.setRowCount(0)
 		self.groupsTree.clearSelection()
-		
+
 		self.setModified(True)
-	
+
 	def deletePassword(self, item):
 		msgBox = QtGui.QMessageBox(text="Are you sure about delete?")
 		msgBox.setStandardButtons(QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
 		res = msgBox.exec_()
-		
+
 		if res != QtGui.QMessageBox.Yes:
 			return
-		
+
 		row = self.passwordTable.row(item)
 		self.passwordTable.removeRow(row)
 		group = self.pwMap.groups[self.selectedGroup]
 		group.removeEntry(row)
-		
+
 		self.passwordTable.resizeRowsToContents()
+		self.passwordTable.horizontalHeader().setResizeMode(0, QtGui.QHeaderView.Stretch)
+		self.passwordTable.horizontalHeader().setResizeMode(1, QtGui.QHeaderView.ResizeToContents)
+		self.passwordTable.horizontalHeader().setResizeMode(2, QtGui.QHeaderView.ResizeToContents)
 		self.setModified(True)
-	
+
 	def cachePassword(self, row, password):
 		"""
 		Cache decrypted password for group and row. Cached items are
 		kept as data of QTableWidgetItem so that deletion invalidates
 		cache.
-		
+
 		Cache applies to currently selectedGroup.
-		
+
 		Switching between groups clears the table and thus invalidates
 		cached passwords.
 		"""
-		item = self.passwordTable.item(row, MainWindow.CACHE_IDX)
+		item = self.passwordTable.item(row, MainWindow.PASSWORDCACHE_IDX)
 		item.setData(QtCore.Qt.UserRole, QtCore.QVariant(s2q(password)))
-	
+
 	def cacheComments(self, row, comments):
 		"""
 		Cache decrypted comments for group and row. Cached items are
 		kept as data of QTableWidgetItem so that deletion invalidates
 		cache.
-		
+
 		Cache applies to currently selectedGroup.
-		
+
 		Switching between groups clears the table and thus invalidates
 		cached comments.
 		"""
-		item = self.passwordTable.item(row, MainWindow.COMMENTS_IDX)
+		item = self.passwordTable.item(row, MainWindow.COMMENTSCACHE_IDX)
 		item.setData(QtCore.Qt.UserRole, QtCore.QVariant(s2q(comments)))
-	
+
 	def cachedPassword(self, row):
 		"""
 		Retrieve cached password for given row of currently selected group.
 		Returns password as string or None if no password cached.
 		"""
-		item = self.passwordTable.item(row, MainWindow.CACHE_IDX)
+		item = self.passwordTable.item(row, MainWindow.PASSWORDCACHE_IDX)
 		cached = item.data(QtCore.Qt.UserRole)
-		
+
 		if cached.isValid():
 			return q2s(cached.toString())
-		
+
 		return None
-	
+
 	def cachedComments(self, row):
 		"""
 		Retrieve cached comments for given row of currently selected group.
 		Returns comments as string or None if no coments cached.
 		"""
-		item = self.passwordTable.item(row, MainWindow.COMMENTS_IDX)
+		item = self.passwordTable.item(row, MainWindow.COMMENTSCACHE_IDX)
 		cached = item.data(QtCore.Qt.UserRole)
-		
+
 		if cached.isValid():
 			return q2s(cached.toString())
-		
+
 		return None
-	
-	def cachedOrDecrypt(self, row):
+
+	def cachedOrDecryptPassword(self, row):
 		"""
 		Try retrieving cached password for item in given row, otherwise
 		decrypt with Trezor.
 		"""
 		cached = self.cachedPassword(row)
-		
+
 		if cached is not None:
 			return cached
 		else: #decrypt with Trezor
 			group = self.pwMap.groups[self.selectedGroup]
 			pwEntry = group.entry(row)
 			encPwComments = pwEntry[1]
-			
+
 			decryptedPwComments = self.pwMap.decryptPassword(encPwComments, self.selectedGroup)
 			lngth = int(decryptedPwComments[0:4])
-			decrypted = decryptedPwComments[4:4+lngth]
+			decryptedPassword = decryptedPwComments[4:4+lngth]
 			decryptedComments = decryptedPwComments[4+lngth:] #while we are at it, cache the comments too
-			self.cachePassword(row, decrypted)
+			self.cachePassword(row, decryptedPassword)
 			self.cacheComments(row, decryptedComments)
-		return decrypted
-	
+		return decryptedPassword
+
 	def cachedOrDecryptComments(self, row):
 		"""
 		Try retrieving cached comments for item in given row, otherwise
 		decrypt with Trezor.
 		"""
 		cached = self.cachedComments(row)
-		
+
 		if cached is not None:
 			return cached
 		else: #decrypt with Trezor
 			group = self.pwMap.groups[self.selectedGroup]
 			pwEntry = group.entry(row)
 			encPwComments = pwEntry[1]
-			
+
 			decryptedPwComments = self.pwMap.decryptPassword(encPwComments, self.selectedGroup)
 			lngth = int(decryptedPwComments[0:4])
-			decrypted = decryptedPwComments[4:4+lngth]
+			decryptedPassword = decryptedPwComments[4:4+lngth]
 			decryptedComments = decryptedPwComments[4+lngth:]
-			self.cachePassword(row, decrypted)
+			self.cachePassword(row, decryptedPassword)
 			self.cacheComments(row, decryptedComments)
 		return decryptedComments
-	
+
 	def showPassword(self, item):
 		#check if this password has been decrypted, use cached version
 		row = self.passwordTable.row(item)
 		try:
-			decrypted = self.cachedOrDecrypt(row)
+			decryptedPassword = self.cachedOrDecryptPassword(row)
 		except CallException:
 			return
-		item = QtGui.QTableWidgetItem(s2q(decrypted))
-		
-		self.cachePassword(row, decrypted)
+		item = QtGui.QTableWidgetItem(s2q(decryptedPassword))
+
+		self.cachePassword(row, decryptedPassword)
 		self.passwordTable.setItem(row, self.PASSWORD_IDX, item)
-	
+
+	def showComments(self, item):
+		#check if this password has been decrypted, use cached version
+		row = self.passwordTable.row(item)
+		try:
+			decryptedComments = self.cachedOrDecryptComments(row)
+		except CallException:
+			return
+		item = QtGui.QTableWidgetItem(s2q(decryptedComments))
+
+		self.cacheComments(row, decryptedComments)
+		self.passwordTable.setItem(row, self.COMMENTS_IDX, item)
+
 	def createPassword(self):
-		"""Slot to create key-value password entry.
+		"""
+		Slot to create key-value password entry.
 		"""
 		if self.selectedGroup is None:
 			return
@@ -362,42 +395,48 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		dialog = AddPasswordDialog(self.pwMap.trezor)
 		if not dialog.exec_():
 			return
-		
+
 		rowCount = self.passwordTable.rowCount()
 		self.passwordTable.setRowCount(rowCount+1)
 		item = QtGui.QTableWidgetItem(dialog.key())
 		pwItem = QtGui.QTableWidgetItem("*****")
+		commetsItem = QtGui.QTableWidgetItem("*****")
 		self.passwordTable.setItem(rowCount, self.KEY_IDX, item)
 		self.passwordTable.setItem(rowCount, self.PASSWORD_IDX, pwItem)
-		
+		self.passwordTable.setItem(rowCount, self.COMMENTS_IDX, commetsItem)
+
 		plainPw = q2s(dialog.pw1())
 		plainComments = q2s(dialog.comments())
 		if len(plainPw) + len(plainComments) > self.MAXSIZEOFPASSWDANDCOMMENTS:
-			msgBox = QtGui.QMessageBox(text="Password and/or comments too long. " +
-				"Combined they must not be larger than " + str(self.MAXSIZEOFPASSWDANDCOMMENTS) + ".")
-			msgBox.exec_()
+			processing.reportLogging("Password and/or comments too long. "
+				"Combined they must not be larger than %d." %
+				self.MAXSIZEOFPASSWDANDCOMMENTS,
+				logging.CRITICAL, "User IO", self.settings, self.logger)
 			return
 
 		plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
 		encPw = self.pwMap.encryptPassword(plainPwComments, self.selectedGroup)
 		bkupPw = self.pwMap.backupKey.encryptPassword(plainPwComments)
 		group.addEntry(q2s(dialog.key()), encPw, bkupPw)
-		
+
 		self.cachePassword(rowCount, plainPw)
 		self.cacheComments(rowCount, plainComments)
-		
+
 		self.passwordTable.resizeRowsToContents()
+		self.passwordTable.horizontalHeader().setResizeMode(0, QtGui.QHeaderView.Stretch)
+		self.passwordTable.horizontalHeader().setResizeMode(1, QtGui.QHeaderView.ResizeToContents)
+		self.passwordTable.horizontalHeader().setResizeMode(2, QtGui.QHeaderView.ResizeToContents)
 		self.setModified(True)
 
 	def editPassword(self, item):
 		row = self.passwordTable.row(item)
 		group = self.pwMap.groups[self.selectedGroup]
 		try:
-			decrypted = self.cachedOrDecrypt(row)
+			decrypted = self.cachedOrDecryptPassword(row)
 			decryptedComments = self.cachedOrDecryptComments(row)
 		except CallException:
 			return
-		
+
 		dialog = AddPasswordDialog(self.pwMap.trezor)
 		entry = group.entry(row)
 		dialog.keyEdit.setText(s2q(entry[0]))
@@ -405,21 +444,24 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		dialog.pwEdit2.setText(s2q(decrypted))
 		doc = QtGui.QTextDocument(s2q(decryptedComments))
 		dialog.commentsEdit.setDocument(doc)
-		
+
 		if not dialog.exec_():
 			return
-		
+
 		item = QtGui.QTableWidgetItem(dialog.key())
 		pwItem = QtGui.QTableWidgetItem("*****")
+		commentsItem = QtGui.QTableWidgetItem("*****")
 		self.passwordTable.setItem(row, self.KEY_IDX, item)
 		self.passwordTable.setItem(row, self.PASSWORD_IDX, pwItem)
-		
+		self.passwordTable.setItem(row, self.COMMENTS_IDX, commentsItem)
+
 		plainPw = q2s(dialog.pw1())
 		plainComments = q2s(dialog.comments())
 		if len(plainPw) + len(plainComments) > self.MAXSIZEOFPASSWDANDCOMMENTS:
-			msgBox = QtGui.QMessageBox(text="Password and/or comments too long. " +
-				"Combined they must not be larger than " + str(self.MAXSIZEOFPASSWDANDCOMMENTS) + ".")
-			msgBox.exec_()
+			processing.reportLogging("Password and/or comments too long. "
+				"Combined they must not be larger than %d." %
+				self.MAXSIZEOFPASSWDANDCOMMENTS,
+				logging.CRITICAL, "User IO", self.settings, self.logger)
 			return
 
 		plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
@@ -427,11 +469,11 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		encPw = self.pwMap.encryptPassword(plainPwComments, self.selectedGroup)
 		bkupPw = self.pwMap.backupKey.encryptPassword(plainPwComments)
 		group.updateEntry(row, q2s(dialog.key()), encPw, bkupPw)
-		
+
 		self.cachePassword(row, plainPw)
 		self.cacheComments(row, plainComments)
 		self.setModified(True)
-	
+
 	def copyPasswordFromSelection(self):
 		"""
 		Copy selected password to clipboard. Password is decrypted if
@@ -440,59 +482,78 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		indexes = self.passwordTable.selectedIndexes()
 		if not indexes:
 			return
-		
+
 		#there will be more indexes as the selection is on a row
 		row = indexes[0].row()
 		item = self.passwordTable.item(row, 1)
 		self.copyPasswordFromItem(item)
-	
+
 	def copyPasswordFromItem(self, item):
 		row = self.passwordTable.row(item)
 		try:
-			decrypted = self.cachedOrDecrypt(row)
+			decryptedPassword = self.cachedOrDecryptPassword(row)
 		except CallException:
 			return
-		
-		self.clipboard.setText(s2q(decrypted))
+
+		self.clipboard.setText(s2q(decryptedPassword))
 		if self.CLIPBOARDTIMEOUTINSEC >  0:
 			self.timer.start(self.CLIPBOARDTIMEOUTINSEC*1000) # cancels previous timer
-		self.cachePassword(row, decrypted)
+		self.cachePassword(row, decryptedPassword)
+
+	def copyCommentsFromItem(self, item):
+		row = self.passwordTable.row(item)
+		try:
+			decryptedComments = self.cachedOrDecryptComments(row)
+		except CallException:
+			return
+
+		self.clipboard.setText(s2q(decryptedComments))
+		if self.CLIPBOARDTIMEOUTINSEC >  0:
+			self.timer.start(self.CLIPBOARDTIMEOUTINSEC*1000) # cancels previous timer
+		self.cachePassword(row, decryptedComments)
 
 	def clearClipboard(self):
 		self.clipboard.clear()
 		self.timer.stop() # cancels previous timer
-		print 'Clipboard cleared.'
-		
+		processing.reportLogging("Clipboard cleared.", logging.DEBUG,
+			"Clipboard", self.settings, self.logger)
+
 	def loadPasswords(self, item):
-		"""Slot that should load items for group that has been clicked on.
+		"""
+		Slot that should load items for group that has been clicked on.
 		"""
 		#self.passwordTable.clear()
 		name = q2s(item.text())
 		self.selectedGroup = name
 		group = self.pwMap.groups[name]
 		self.passwordTable.setRowCount(len(group.entries))
-		self.passwordTable.setColumnCount(2)
-		
+		self.passwordTable.setColumnCount(self.NOOFPASSWDTABLECOLUMNS)
+
 		i = 0
 		for key, encValue, bkupValue in group.entries:
 			item = QtGui.QTableWidgetItem(s2q(key))
 			pwItem = QtGui.QTableWidgetItem("*****")
+			commentsItem = QtGui.QTableWidgetItem("*****")
 			self.passwordTable.setItem(i, self.KEY_IDX, item)
 			self.passwordTable.setItem(i, self.PASSWORD_IDX, pwItem)
+			self.passwordTable.setItem(i, self.COMMENTS_IDX, commentsItem)
 			i = i+1
-		
+
 		self.passwordTable.resizeRowsToContents()
-	
+		self.passwordTable.horizontalHeader().setResizeMode(0, QtGui.QHeaderView.Stretch)
+		self.passwordTable.horizontalHeader().setResizeMode(1, QtGui.QHeaderView.ResizeToContents)
+		self.passwordTable.horizontalHeader().setResizeMode(2, QtGui.QHeaderView.ResizeToContents)
+
 	def loadPasswordsBySelection(self):
 		proxyIdx = self.groupsTree.currentIndex()
 		itemIdx = self.groupsFilter.mapToSource(proxyIdx)
 		selectedItem = self.groupsModel.itemFromIndex(itemIdx)
-		
+
 		if not selectedItem:
 			return
-		
+
 		self.loadPasswords(selectedItem)
-	
+
 	def filterGroups(self, substring):
 		"""
 		Filter groupsTree view to have items containing given substring.
@@ -505,70 +566,70 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		Show window with about and version information.
 		"""
 		msgBox = QtGui.QMessageBox(QtGui.QMessageBox.Information, "About", "About <b>TrezorPass</b>: <br><br>TrezorPass is a safe " +
-			"Password Manager application for people owning a Trezor and preferring to " +
+			"Password Manager application for people owning a Trezor who prefer to " +
 			"keep their passwords local and not on the cloud. All passwords are " +
 			"stored locally in a single file.<br><br>" +
-			"<b>Version: </b>" + self.TREZORPASSSOFTWAREVERSION + 
-			" from " + self.TREZORPASSSOFTWAREVERSIONTEXT)
+			"<b>Version: </b>" + basics.TREZORPASSSOFTWAREVERSION +
+			" from " + basics.TREZORPASSSOFTWAREVERSIONTEXT)
 		msgBox.setIconPixmap(QPixmap("icons/TrezorPass.svg"))
 		msgBox.exec_()
-	
+
 	def saveBackup(self):
 		"""
 		First it saves any pending changes to the pwdb database file. Then it uses an operating system call
-		to copy the file appending a timestamp at the end of the file name. 
+		to copy the file appending a timestamp at the end of the file name.
 		"""
 		if self.modified:
 			self.saveDatabase()
 		backupFilename = settings.dbFilename + "." + time.strftime('%Y%m%d%H%M%S')
 		copyfile(settings.dbFilename, backupFilename)
-		msgBox = QtGui.QMessageBox(QtGui.QMessageBox.Information, "Backup", "<b>INFO:</b> Backup of the encrypted database file has been created " +
-			"and placed into file " + backupFilename + " (" + str(os.path.getsize(backupFilename)) + " bytes).")
-		msgBox.exec_()
-	
+		processing.reportLogging("Backup of the encrypted database file has been created "
+			"and placed into file \"%s\" (%d bytes)." % (backupFilename, os.path.getsize(backupFilename)),
+			logging.INFO, "User IO", self.settings, self.logger)
+
 	def importCsv(self):
 		"""
 		Read a properly formated CSV file from disk
-		and add its contents to the current entries. 
-		
+		and add its contents to the current entries.
+
 		Import format in CSV should be : group, key, password, comments
 
-		There is no error checking, so be extra careful. 
-		
+		There is no error checking, so be extra careful.
+
 		Make a backup first.
 
-		Entries from CSV will be *added* to existing pwdb. If this is not desired 
+		Entries from CSV will be *added* to existing pwdb. If this is not desired
 		create an empty pwdb file first.
 
-		GroupNames are unique, so if a groupname exists then 
+		GroupNames are unique, so if a groupname exists then
 		key-password-comments tuples are added to the already existing group.
 		If a group name does not exist, a new group is created and the
 		key-password-comments tuples are added to the newly created group.
 
-		Keys are not unique. So key-password-comments are always added. 
-		If a key with a given name existed before and the CSV file contains a 
+		Keys are not unique. So key-password-comments are always added.
+		If a key with a given name existed before and the CSV file contains a
 		key with the same name, then the key-password-comments is added and
-		after the import the given group has 2 keys with the same name. 
+		after the import the given group has 2 keys with the same name.
 		Both keys exist then, the old from before the import, and the new one from the import.
 
 		Examples of valid CSV file format: Some example lines
 		First Bank account,login,myloginname,	# no comment
 		foo@gmail.com,2-factor-authentication key,abcdef12345678,seed to regenerate 2FA codes	# with comment
 		foo@gmail.com,recovery phrase,"passwd with 2 commas , ,",	# with comma
-		foo@gmail.com,large multi-line comments,,"first line, some comma, 
+		foo@gmail.com,large multi-line comments,,"first line, some comma,
 		second line"
 		"""
 		if self.modified:
 			self.saveDatabase()
 		copyfile(settings.dbFilename, settings.dbFilename + ".beforeCsvImport.backup")
-		msgBox = QtGui.QMessageBox(QtGui.QMessageBox.Warning, "Import", "WARNING: You are about to import entries from a " + 
-			"CSV file into your current password-database file. For safety " +
-			"reasons please make a backup copy now.")
-		msgBox.exec_()
+		processing.reportLogging("WARNING: You are about to import entries from a "
+			"CSV file into your current password-database file. For safety "
+			"reasons please make a backup copy now.", logging.NOTSET,
+			"CSV import", self.settings, self.logger)
 		dialog = QtGui.QFileDialog(self, "Select import CSV file",
 			"", "CVS files (*.csv)")
 		dialog.setAcceptMode(QtGui.QFileDialog.AcceptOpen)
-		
+
 		res = dialog.exec_()
 		if not res:
 			return
@@ -579,7 +640,9 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 			reader = csv.reader(f, dialect="escaped")
 			groupNames = self.pwMap.groups.keys()
 			for csvEntry in reader:
-				# print "Entry:", csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]
+				processing.reportLogging("CSV Entry: 0=%s, 1=%s, 2=%s, 3=%s" %
+					(csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]), logging.DEBUG,
+					"CSV import", self.settings, self.logger)
 				groupName, key, plainPw, plainComments = csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]
 				if groupName not in groupNames:	# groups are unique
 					self.pwMap.addGroup(groupName)
@@ -587,9 +650,9 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 					self.groupsModel.appendRow(item)
 
 				if len(plainPw) + len(plainComments) > self.MAXSIZEOFPASSWDANDCOMMENTS:
-					msgBox = QtGui.QMessageBox(text="Password and/or comments too long. " +
-						"Combined they must not be larger than " + str(self.MAXSIZEOFPASSWDANDCOMMENTS) + ".")
-					msgBox.exec_()
+					processing.reportLogging("Password and/or comments too long. "
+						"Combined they must not be larger than %d." % self.MAXSIZEOFPASSWDANDCOMMENTS, logging.NOTSET,
+						"CSV import", self.settings, self.logger)
 					return
 				group = self.pwMap.groups[groupName]
 				plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
@@ -599,34 +662,36 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 
 			self.groupsTree.sortByColumn(0, QtCore.Qt.AscendingOrder)
 			self.setModified(True)
-		print "Trezorpass has finished importing CSV file into ", settings.dbFilename, "."
+		processing.reportLogging("Trezorpass has finished importing CSV file "
+			"from \"%s\" into \"%s\"." % (fname, settings.dbFilename), logging.INFO,
+			"CSV import", self.settings, self.logger)
 
 	def exportCsv(self):
 		"""
 		Uses backup key encrypted by Trezor to decrypt all passwords
 		at once and export them into a single paintext CSV file.
-		
+
 		Export format is CSV: group, key, password, comments
 		"""
-		msgBox = QtGui.QMessageBox(QtGui.QMessageBox.Warning, "Export", "<b>WARNING:</b><br>During backup/export all passwords will be " + 
-			"written in plaintext to disk. If possible you should consider performing this " +
-			"operation on an offline or air-gapped computer. Be aware of the risks.")
-		msgBox.exec_()
+		processing.reportLogging("WARNING: During backup/export all passwords will be "
+			"written in plaintext to disk. If possible you should consider performing this "
+			"operation on an offline or air-gapped computer. Be aware of the risks.",
+			logging.NOTSET,	"CSV export", self.settings, self.logger)
 		dialog = QtGui.QFileDialog(self, "Select backup export file",
 			"", "CVS files (*.csv)")
 		dialog.setAcceptMode(QtGui.QFileDialog.AcceptSave)
-		
+
 		res = dialog.exec_()
 		if not res:
 			return
-		
+
 		fname = q2s(dialog.selectedFiles()[0])
 		backupKey = self.pwMap.backupKey
 		try:
 			privateKey = backupKey.unwrapPrivateKey()
 		except CallException:
 			return
-		
+
 		with file(fname, "w") as f:
 			csv.register_dialect("escaped", doublequote=False, escapechar='\\')
 			writer = csv.writer(f, dialect="escaped")
@@ -641,59 +706,63 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 					comments = decryptedPwComments[4+lngth:]
 					csvEntry = (groupName, key, password, comments)
 					writer.writerow(csvEntry)
-	
+
+		processing.reportLogging("Trezorpass has finished exporting CSV file "
+			"from \"%s\" to \"%s\"." % (settings.dbFilename, fname), logging.INFO,
+			"CSV export", self.settings, self.logger)
+
 	def saveDatabase(self):
 		"""
 		Save main database file.
 		"""
 		self.pwMap.save(self.dbFilename)
 		self.setModified(False)
-	
+
 	def closeEvent(self, event):
 		if self.modified:
 			msgBox = QtGui.QMessageBox(text="Password database is modified. Save on exit?")
 			msgBox.setStandardButtons(QtGui.QMessageBox.Yes |
 				QtGui.QMessageBox.No | QtGui.QMessageBox.Cancel )
 			reply = msgBox.exec_()
-			
+
 			if not reply or reply == QtGui.QMessageBox.Cancel:
 				event.ignore()
 				return
 			elif reply == QtGui.QMessageBox.Yes:
 				self.saveDatabase()
-			
+
 		event.accept()
-	
+
 class QtTrezorMixin(object):
 	"""
 	Mixin for input of passhprases.
 	"""
-	
+
 	def __init__(self, *args, **kwargs):
 		super(QtTrezorMixin, self).__init__(*args, **kwargs)
 		self.passphrase = None
-	
+
 	def callback_ButtonRequest(self, msg):
 		return proto.ButtonAck()
 
 	def callback_PassphraseRequest(self, msg):
 		if self.passphrase is not None:
 			return proto.PassphraseAck(passphrase=self.passphrase)
-			
+
 		dialog = TrezorPassphraseDialog()
 		if not dialog.exec_():
 			sys.exit(3)
 		else:
 			passphrase = dialog.passphraseEdit.text()
 			passphrase = unicode(passphrase)
-		
+
 		return proto.PassphraseAck(passphrase=passphrase)
-	
+
 	def callback_PinMatrixRequest(self, msg):
 		dialog = EnterPinDialog()
 		if not dialog.exec_():
 			sys.exit(7)
-		
+
 		pin = q2s(dialog.pin())
 		return proto.PinMatrixAck(pin=pin)
 
@@ -711,10 +780,10 @@ class QtTrezorClient(ProtocolMixin, QtTrezorMixin, BaseClient):
 
 class TrezorChooser(object):
 	"""Class for working with Trezor device via HID"""
-	
+
 	def __init__(self):
 		pass
-	
+
 	def getDevice(self):
 		"""
 		Get one from available devices. Widget will be shown if more
@@ -724,7 +793,7 @@ class TrezorChooser(object):
 
 		if not devices:
 			return None
-		
+
 		transport = self.chooseDevice(devices)
 		client = QtTrezorClient(transport)
 
@@ -740,10 +809,10 @@ class TrezorChooser(object):
 		"""
 		Choose device from enumerated list. If there's only one Trezor,
 		that will be chosen.
-		
+
 		If there are multiple Trezors, diplays a widget with list
 		of Trezor devices to choose from.
-		
+
 		@returns HidTransport object of selected device
 		"""
 		if not len(devices):
@@ -754,8 +823,8 @@ class TrezorChooser(object):
 				return HidTransport(devices[0])
 			except IOError:
 				raise RuntimeError("Trezor is currently in use")
-		
-		
+
+
 		#maps deviceId string to device label
 		deviceMap = {}
 		for device in devices:
@@ -764,65 +833,55 @@ class TrezorChooser(object):
 				client = QtTrezorClient(transport)
 				label = client.features.label and client.features.label or "<no label>"
 				client.close()
-				
+
 				deviceMap[device[0]] = label
 			except IOError:
 				#device in use, do not offer as choice
 				continue
-				
+
 		if not deviceMap:
 			raise RuntimeError("All connected Trezors are in use!")
-		
+
 		dialog = TrezorChooserDialog(deviceMap)
 		if not dialog.exec_():
 			sys.exit(9)
-		
+
 		deviceStr = dialog.chosenDeviceStr()
 		return HidTransport([deviceStr, None])
-		
 
-class Settings(object):
-	"""
-	Settings for password database location
-	"""
-	
-	def __init__(self):
-		self.dbFilename = None
-		self.settings = QtCore.QSettings("ConstructibleUniverse", "TrezorPass")
-		fname = self.settings.value("database/filename")
-		if fname.isValid():
-			self.dbFilename = q2s(fname.toString())
-	
-	def store(self):
-		self.settings.setValue("database/filename", s2q(self.dbFilename))
-	
+
 def initializeStorage(trezor, pwMap, settings):
 	"""
 	Initialize new encrypted password file, ask for master passphrase.
-	
+
 	Initialize RSA keypair for backup, encrypt private RSA key using
 	backup passphrase and Trezor's cipher-key-value system.
-	
+
 	Makes sure a session is created on Trezor so that the passphrase
 	will be cached until disconnect.
-	
+
 	@param trezor: Trezor client
 	@param pwMap: PasswordMap where to put encrypted backupKeys
 	@param settings: Settings object to store password database location
 	"""
 	dialog = InitializeDialog()
+	if settings.passphrase() != None:
+		dialog.setPw1(settings.passphrase())
+		dialog.setPw2(settings.passphrase())
+
 	if not dialog.exec_():
 		sys.exit(4)
-		
+
 	masterPassphrase = q2s(dialog.pw1())
-	
+
 	trezor.prefillPassphrase(masterPassphrase)
 	backup = Backup(trezor)
 	backup.generate()
 	pwMap.backupKey = backup
 	settings.dbFilename = q2s(dialog.pwFile())
+	settings.FArg = q2s(dialog.pwFile())
 	settings.store()
-	
+
 def updatePwMapFromV1ToV2(pwMap, settings):
 	"""
 	Update the pwMap from v1 (only password) to v2 (password and comments).
@@ -844,60 +903,76 @@ def updatePwMapFromV1ToV2(pwMap, settings):
 			idx = group.entries.index(entry)
 			group.updateEntry(idx, key, encPw, bkupPw)
 	pwMap.save(settings.dbFilename)
-	print "Trezorpass database", settings.dbFilename, "successfully updated from version 1 to version 2."
+	processing.reportLogging("Trezorpass database \"%s\" successfully "
+		"updated from version 1 to version 2." % settings.dbFilename, logging.NOTSET,
+		"Trezor datbase", settings, settings.logger)
+
+# root
+
+logging.basicConfig(stream=sys.stderr, level=basics.LOGGINGLEVEL)
+logger = logging.getLogger('')
 
 app = QtGui.QApplication(sys.argv)
+
+settings = processing.Settings(logger) # initialize settings
+# parse command line
+processing.parseArgs(sys.argv[1:], settings, logger)
 
 try:
 	trezorChooser = TrezorChooser()
 	trezor = trezorChooser.getDevice()
 except (ConnectionError, RuntimeError), e:
-	msgBox = QtGui.QMessageBox(text="Connection to Trezor failed: " + e.message)
-	msgBox.exec_()
+	processing.reportLogging("Connection to Trezor failed: %s" % e.message, logging.CRITICAL,
+		"Trezor Error", settings, logger)
 	sys.exit(1)
-	
 
 if trezor is None:
-	msgBox = QtGui.QMessageBox(text="No available Trezor found, quitting.")
-	msgBox.exec_()
+	processing.reportLogging("No available Trezor found, quitting.", logging.CRITICAL,
+		"Trezor Error", settings, logger)
 	sys.exit(1)
-	
+
 trezor.clear_session()
-#print "label:", trezor.features.label
+logger.info("Trezor label: %s", trezor.features.label)
+if settings.passphrase() != None:
+	trezor.prefillPassphrase(settings.passphrase())
 
 pwMap = password_map.PasswordMap(trezor)
-settings = Settings()
 
 if settings.dbFilename and os.path.isfile(settings.dbFilename):
 	try:
 		pwMap.load(settings.dbFilename)
 	except PinException:
-		msgBox = QtGui.QMessageBox(text="Invalid PIN")
-		msgBox.exec_()
+		processing.reportLogging("Invalid Trezor PIN entered. Aborting.",
+			logging.CRITICAL, "Trezor IO", settings, logger)
 		sys.exit(8)
 	except CallException:
+		# this is never reached, there is a sys.exit in the Cancel button
+		processing.reportLogging("User requested to quit (Esc, Cancel).",
+			logging.CRITICAL, "Trezor IO", settings, logger)
 		#button cancel on Trezor, so exit
 		sys.exit(6)
 	except Exception, e:
-		msgBox = QtGui.QMessageBox(text="Could not decrypt passwords: " + e.message)
-		msgBox.exec_()
+		processing.reportLogging("Could not decrypt passwords: %s" % e.message,
+			logging.CRITICAL, "Trezor IO", settings, logger)
 		sys.exit(5)
 
 	if pwMap.version == 1:
 		copyfile(settings.dbFilename, settings.dbFilename + ".v1.backup")
-		msgBox = QtGui.QMessageBox(text="Updating Trezorpass database file from version 1 to version 2. Please make a backup of " + settings.dbFilename + " now!")
-		msgBox.exec_()
-		updatePwMapFromV1ToV2(pwMap, settings)		
+		processing.reportLogging("Updating Trezorpass database file from "
+			"version 1 to version 2. Please make a backup of \"%s\" now!" %
+			settings.dbFilename, logging.NOTSET,
+			"Trezor datbase", settings, logger)
+		updatePwMapFromV1ToV2(pwMap, settings)
 
 else:
 	initializeStorage(trezor, pwMap, settings)
-	
+
 rng = Random.new()
 pwMap.outerIv = rng.read(password_map.BLOCKSIZE)
 pwMap.outerKey = rng.read(password_map.KEYSIZE)
 pwMap.encryptedBackupKey = ""
 
-mainWindow = MainWindow(pwMap, settings.dbFilename)
+mainWindow = MainWindow(pwMap, settings, logger, settings.dbFilename)
 mainWindow.show()
 retCode = app.exec_()
 
