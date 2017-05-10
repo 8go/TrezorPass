@@ -11,24 +11,25 @@ from ui_initialize_dialog import Ui_InitializeDialog
 from ui_enter_pin_dialog import Ui_EnterPinDialog
 from ui_trezor_chooser_dialog import Ui_TrezorChooserDialog
 
+import basics
 from encoding import q2s, s2q
 
 class AddGroupDialog(QtGui.QDialog, Ui_AddGroupDialog):
-	
+
 	def __init__(self, groups):
 		QtGui.QDialog.__init__(self)
 		self.setupUi(self)
 		self.newGroupEdit.textChanged.connect(self.validate)
 		self.groups = groups
-		
+
 		#disabled for empty string
 		button = self.buttonBox.button(QtGui.QDialogButtonBox.Ok)
 		button.setEnabled(False)
-	
+
 	def newGroupName(self):
 		return self.newGroupEdit.text()
-		
-	
+
+
 	def validate(self):
 		"""
 		Validates input if name is not empty and is different from
@@ -38,26 +39,27 @@ class AddGroupDialog(QtGui.QDialog, Ui_AddGroupDialog):
 		text = self.newGroupEdit.text()
 		if text.isEmpty():
 			valid = False
-		
+
 		if unicode(text).encode("utf-8") in self.groups:
 			valid = False
-		
+
 		button = self.buttonBox.button(QtGui.QDialogButtonBox.Ok)
 		button.setEnabled(valid)
-	
+
 class TrezorPassphraseDialog(QtGui.QDialog, Ui_TrezorPassphraseDialog):
-	
+
 	def __init__(self):
 		QtGui.QDialog.__init__(self)
 		self.setupUi(self)
-	
+
 	def passphrase(self):
 		return self.passphraseEdit.text()
-		
-	
+
+	def setPassphrase(self, pw):
+		self.passphraseEdit.setText(pw)
 
 class AddPasswordDialog(QtGui.QDialog, Ui_AddPasswordDialog):
-	
+
 	def __init__(self, trezor):
 		QtGui.QDialog.__init__(self)
 		self.setupUi(self)
@@ -66,35 +68,35 @@ class AddPasswordDialog(QtGui.QDialog, Ui_AddPasswordDialog):
 		self.showHideButton.clicked.connect(self.switchPwVisible)
 		self.generatePasswordButton.clicked.connect(self.generatePassword)
 		self.trezor = trezor
-	
+
 	def key(self):
 		return self.keyEdit.text()
-	
+
 	def pw1(self):
 		return self.pwEdit1.text()
-	
+
 	def pw2(self):
 		return self.pwEdit2.text()
-	
+
 	def comments(self):
 		doc = self.commentsEdit.document()
 		return doc.toPlainText()
-	
+
 	def validatePw(self):
 		same = self.pw1() == self.pw2()
 		button = self.buttonBox.button(QtGui.QDialogButtonBox.Ok)
 		button.setEnabled(same)
-	
+
 	def switchPwVisible(self):
 		pwMode = self.pwEdit1.echoMode()
 		if pwMode == QtGui.QLineEdit.Password:
 			newMode = QtGui.QLineEdit.Normal
 		else:
 			newMode = QtGui.QLineEdit.Password
-			
+
 		self.pwEdit1.setEchoMode(newMode)
 		self.pwEdit2.setEchoMode(newMode)
-	
+
 	def generatePassword(self):
 	        trezor_entropy = self.trezor.get_entropy(32)
 		urandom_entropy = os.urandom(32)
@@ -108,9 +110,9 @@ class AddPasswordDialog(QtGui.QDialog, Ui_AddPasswordDialog):
 		# This way, by clicking the "Generate password" button one can create an arbitrary long random password.
 		self.pwEdit1.setText(self.pw1() + s2q(passwdB64))
 		self.pwEdit2.setText(self.pw2() + s2q(passwdB64))
-		
+
 class InitializeDialog(QtGui.QDialog, Ui_InitializeDialog):
-	
+
 	def __init__(self):
 		QtGui.QDialog.__init__(self)
 		self.setupUi(self)
@@ -119,16 +121,22 @@ class InitializeDialog(QtGui.QDialog, Ui_InitializeDialog):
 		self.pwFileEdit.textChanged.connect(self.validate)
 		self.pwFileButton.clicked.connect(self.selectPwFile)
 		self.validate()
-	
+
+	def setPw1(self, pw):
+		self.masterEdit1.setText(s2q(pw))
+
+	def setPw2(self, pw):
+		self.masterEdit2.setText(s2q(pw))
+
 	def pw1(self):
 		return self.masterEdit1.text()
-	
+
 	def pw2(self):
 		return self.masterEdit2.text()
-	
+
 	def pwFile(self):
 		return self.pwFileEdit.text()
-	
+
 	def validate(self):
 		"""
 		Enable OK button only if both master and backup are repeated
@@ -138,7 +146,7 @@ class InitializeDialog(QtGui.QDialog, Ui_InitializeDialog):
 		fileSelected = not self.pwFileEdit.text().isEmpty()
 		button = self.buttonBox.button(QtGui.QDialogButtonBox.Ok)
 		button.setEnabled(same and fileSelected)
-	
+
 	def selectPwFile(self):
 		"""
 		Show file dialog and return file user chose to store the
@@ -146,22 +154,22 @@ class InitializeDialog(QtGui.QDialog, Ui_InitializeDialog):
 		"""
 		path = QtCore.QDir.currentPath()
 		dialog = QtGui.QFileDialog(self, "Select password database file",
-			path, "(*.pwdb)")
+			path, "(*"+basics.TREZORPASSPWDBFILEEXT+")")
 		dialog.setAcceptMode(QtGui.QFileDialog.AcceptSave)
-		
+
 		res = dialog.exec_()
 		if not res:
 			return
-		
+
 		fname = dialog.selectedFiles()[0]
 		self.pwFileEdit.setText(fname)
 
 class EnterPinDialog(QtGui.QDialog, Ui_EnterPinDialog):
-	
+
 	def __init__(self):
 		QtGui.QDialog.__init__(self)
 		self.setupUi(self)
-		
+
 		self.pb1.clicked.connect(self.pinpadPressed)
 		self.pb2.clicked.connect(self.pinpadPressed)
 		self.pb3.clicked.connect(self.pinpadPressed)
@@ -171,33 +179,33 @@ class EnterPinDialog(QtGui.QDialog, Ui_EnterPinDialog):
 		self.pb7.clicked.connect(self.pinpadPressed)
 		self.pb8.clicked.connect(self.pinpadPressed)
 		self.pb9.clicked.connect(self.pinpadPressed)
-	
+
 	def pin(self):
 		return self.pinEdit.text()
-	
+
 	def pinpadPressed(self):
 		sender = self.sender()
 		objName = sender.objectName()
 		digit = objName[-1]
 		self.pinEdit.setText(self.pinEdit.text() + digit)
-	
+
 class TrezorChooserDialog(QtGui.QDialog, Ui_TrezorChooserDialog):
-	
+
 	def __init__(self, deviceMap):
 		"""
 		Create dialog and fill it with labels from deviceMap
-		
+
 		@param deviceMap: dict device string -> device label
 		"""
 		QtGui.QDialog.__init__(self)
 		self.setupUi(self)
-		
+
 		for deviceStr, label in deviceMap.items():
 			item = QtGui.QListWidgetItem(label)
 			item.setData(QtCore.Qt.UserRole, QtCore.QVariant(deviceStr))
 			self.trezorList.addItem(item)
 		self.trezorList.setCurrentRow(0)
-	
+
 	def chosenDeviceStr(self):
 		"""
 		Returns device string of chosen Trezor
@@ -205,4 +213,3 @@ class TrezorChooserDialog(QtGui.QDialog, Ui_TrezorChooserDialog):
 		itemData = self.trezorList.currentItem().data(QtCore.Qt.UserRole)
 		deviceStr = str(itemData.toString())
 		return deviceStr
-	
