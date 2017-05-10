@@ -18,7 +18,7 @@ Trezor must be already set up to use passphrase.
 
 Below  a sample screenshot. More screenshots [here](../../tree/master/screenshots).
 
-![Screenshot](screenshots/trezorpass-screenshot-mainwindow-passwordsmenu-v3.png)
+![Screenshot](screenshots/trezorpass-screenshot-mainwindow-mainmenu-v3.png)
 
 # Security features
 
