@@ -98,7 +98,7 @@ class AddPasswordDialog(QtGui.QDialog, Ui_AddPasswordDialog):
 		self.pwEdit2.setEchoMode(newMode)
 
 	def generatePassword(self):
-	        trezor_entropy = self.trezor.get_entropy(32)
+		trezor_entropy = self.trezor.get_entropy(32)
 		urandom_entropy = os.urandom(32)
 		passwdBin = hashlib.sha256(trezor_entropy + urandom_entropy).digest()
 		# base85 encoding not yet implemented in Python 2.7, (requires Python 3+)

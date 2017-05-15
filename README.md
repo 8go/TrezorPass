@@ -16,7 +16,7 @@ Note that this is alpha software.
 
 Trezor must be already set up to use passphrase.
 
-Below  a sample screenshot. More screenshots [here](../../tree/master/screenshots).
+Below  a sample screenshot. More screenshots [here](screenshots).
 
 ![Screenshot](screenshots/trezorpass-screenshot-mainwindow-mainmenu-v3.png)
 
@@ -98,9 +98,18 @@ with Trezor. Export requires private RSA to be decrypted and then used to decryp
 the passwords. The RSA key is managed internally, so that you do not need to
 worry about it.
 
+# Alternative products/projects
+
+If you are looking for something simpler, something without a GUI,
+something that uses only a CLI, have a look at `pass` from
+[passwordstore.org](https://www.passwordstore.org/). You can use `pass`
+together with a Trezor-based GPG identity and key.
+See also [gpg on Trezor](https://github.com/romanz/trezor-agent/).
+
 # FAQ - Frequently Asked Questions
 
-**Question:** I read something about an RSA key somewhere? Do I need to create it? Can I use my own? Where is it? How many bits is it?
+**Question:** I read something about an RSA key somewhere? Do I need to
+create it? Can I use my own? Where is it? How many bits is it?
 
 **Answer:**
 

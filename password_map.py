@@ -182,9 +182,6 @@ class PasswordMap(object):
 			f.write(encrypted)
 			f.write(hmacDigest)
 
-			f.flush()
-			f.close()
-
 	def encryptOuter(self, plaintext, iv):
 		"""
 		Pad and encrypt with self.outerKey

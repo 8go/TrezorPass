@@ -496,6 +496,9 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 			return
 
 		self.clipboard.setText(s2q(decryptedPassword))
+		# Do not log contents of clipboard, contains secrets!
+		processing.reportLogging("Copied text to clipboard.", logging.DEBUG,
+			"Clipboard", self.settings, self.logger)
 		if self.CLIPBOARDTIMEOUTINSEC >  0:
 			self.timer.start(self.CLIPBOARDTIMEOUTINSEC*1000) # cancels previous timer
 		self.cachePassword(row, decryptedPassword)
@@ -508,6 +511,9 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 			return
 
 		self.clipboard.setText(s2q(decryptedComments))
+		# Do not log contents of clipboard, contains secrets!
+		processing.reportLogging("Copied text to clipboard.", logging.DEBUG,
+			"Clipboard", self.settings, self.logger)
 		if self.CLIPBOARDTIMEOUTINSEC >  0:
 			self.timer.start(self.CLIPBOARDTIMEOUTINSEC*1000) # cancels previous timer
 		self.cachePassword(row, decryptedComments)
@@ -659,9 +665,9 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 				encPw = self.pwMap.encryptPassword(plainPwComments, groupName)
 				bkupPw = self.pwMap.backupKey.encryptPassword(plainPwComments)
 				group.addEntry(key, encPw, bkupPw) # keys are not unique, multiple items with same key are allowed
-
 			self.groupsTree.sortByColumn(0, QtCore.Qt.AscendingOrder)
 			self.setModified(True)
+
 		processing.reportLogging("Trezorpass has finished importing CSV file "
 			"from \"%s\" into \"%s\"." % (fname, settings.dbFilename), logging.INFO,
 			"CSV import", self.settings, self.logger)
@@ -910,7 +916,7 @@ def updatePwMapFromV1ToV2(pwMap, settings):
 # root
 
 logging.basicConfig(stream=sys.stderr, level=basics.LOGGINGLEVEL)
-logger = logging.getLogger('')
+logger = logging.getLogger('tp') # tp for TrezorPass
 
 app = QtGui.QApplication(sys.argv)
 
@@ -922,13 +928,13 @@ try:
 	trezorChooser = TrezorChooser()
 	trezor = trezorChooser.getDevice()
 except (ConnectionError, RuntimeError), e:
-	processing.reportLogging("Connection to Trezor failed: %s" % e.message, logging.CRITICAL,
-		"Trezor Error", settings, logger)
+	processing.reportLogging("Connection to Trezor failed: %s" % e.message,
+		logging.CRITICAL, "Trezor Error", settings, logger)
 	sys.exit(1)
 
 if trezor is None:
-	processing.reportLogging("No available Trezor found, quitting.", logging.CRITICAL,
-		"Trezor Error", settings, logger)
+	processing.reportLogging("No available Trezor found, quitting.",
+		logging.CRITICAL, "Trezor Error", settings, logger)
 	sys.exit(1)
 
 trezor.clear_session()

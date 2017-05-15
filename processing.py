@@ -73,6 +73,19 @@ def usage():
 				be the password file opened from now on
 
 		All arguments are optional. Usually none needs to be used.
+
+		Examples:
+		# normal operation
+		TrezorPass.py
+
+		# normal operation with verbose logging at Debug level
+		TrezorPass.py -l 1
+
+		# open some old backup password database (once)
+		TrezorPass.py -f trezorpass.backup.170101.pwdb
+
+		# from now on always by default open password database from environment 2
+		TrezorPass.py -d -f trezorpass.env2.pwdb
 		"""
 
 def printVersion():
@@ -164,7 +177,7 @@ def reportLogging(str, level, title, settings, logger):
 	b) thru QMessageBox()
 
 	NOTSET means it will be printed, both terminal and QMessageBox
-	
+
 	@param str: string to report/log
 	@param level: log level from DEBUG to CRITICAL
 	@param title: window title text
