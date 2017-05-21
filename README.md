@@ -34,7 +34,9 @@ Below  a sample screenshot. More screenshots [here](screenshots).
     of which password group is requested before confirmation
   * export of passwords to a CSV file is possible, also requires explicit button confirmation
   * import of passwords from a CSV file is possible, allowing migration from other password
-    managers
+    managers.
+  * a specific migration program is available for easy migrate from [KeePass](http://keepass.info/)
+    to TrezorPass
   * a backup function for backing up the encrypted password database is provided for convenience
   * 10 seconds after copying a password to the clipboard the clipboard is automatically cleared again
   * if Trezor is lost, recovery from seed on a new Trezor and using the same
@@ -146,7 +148,7 @@ This string is stored in the QQtCore.QSettings.
 - - -
 **Question:** In which language is TrezorPass written?
 
-**Answer:** [Python](https://www.python.org/).
+**Answer:** [Python](https://www.python.org/) 2.7. It will currently not run on Python 3.
 - - -
 **Question:** Do I need to have a [Trezor](https://www.trezor.io/) in order to use TrezorPass?
 
@@ -329,7 +331,7 @@ convertKeePass2XmlToTrezorPassCsv.py [-v] [-h] [-i <keepass2.xml>] [-o <trezorpa
 - - -
 **Question:** On which platforms, operating systems is TrezorPass available?
 
-**Answer:** On all platforms, operating systems where [Python](https://www.python.org/) and [PyQt](https://en.wikipedia.org/wiki/PyQt) is available: Windows, Linux, Unix, Mac OS X. Internet searches show Python and PyQt solutions for Android and iOS, but it has not been investigated or tested on Android or iOS.
+**Answer:** On all platforms, operating systems where [Python](https://www.python.org/) 2.7 and [PyQt](https://en.wikipedia.org/wiki/PyQt) v4 is available: Windows, Linux, Unix, Mac OS X. Internet searches show Python and PyQt solutions for Android and iOS, but it has not been investigated or tested on Android or iOS.
 - - -
 **Question:** Are there any warranties or guarantees?
 
