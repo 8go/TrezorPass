@@ -43,6 +43,7 @@ Below  a sample screenshot. More screenshots [here](screenshots).
 
 # Runtime requirements
 
+  * Python 2.7
   * PyCrypto
   * PyQt4
   * [trezorlib from python-trezor](https://github.com/trezor/python-trezor)
@@ -69,7 +70,7 @@ On rare occasions one of the command line arguments might become useful:
 
 ```
 TrezorPass.py [-v] [-h] [-l <level>] [-p <passphrase>] [[-d] -f <pwdbfile>]
-    -v, --verion
+    -v, --version
             print the version number
     -h, --help
             print short help text
@@ -185,7 +186,7 @@ This string is stored in the QQtCore.QSettings.
 - - -
 **Question:** How can I know that TrezorPass does not contain a virus?
 
-**Answer:** Download the source from [Github](https://github.com/hiviah/TrezorPass) and inspect the souce code for viruses. Don't download it from unreliable sources.
+**Answer:** Download the source from [Github](https://github.com/) and inspect the source code for viruses. Don't download it from unreliable sources.
 - - -
 **Question:** How can someone steal **all** my passwords?
 
@@ -193,7 +194,7 @@ This string is stored in the QQtCore.QSettings.
 - - -
 **Question:** Can a **remote** hacker or a virus on my computer steal **all** my passwords?
 
-**Answer:** A remote hacker cannot have access to your physical trezor device. A remote hacker should not have access to your 24 Trezor seed words (as those should never be stored online). Under these conditions a remote hacker **cannot** steal **all** your passwords at once.
+**Answer:** A remote hacker cannot have access to your physical Trezor device. A remote hacker should not have access to your 24 Trezor seed words (as those should never be stored online). Under these conditions a remote hacker **cannot** steal **all** your passwords at once.
 - - -
 **Question:** Can a keyboard logger steal a password?
 
@@ -201,7 +202,7 @@ This string is stored in the QQtCore.QSettings.
 - - -
 **Question:** Can a screen grabber or a person looking over my shoulder steal a password?
 
-**Answer:** Not if you are careful. Passwords can be created with a "Generate random password" button click without the use of a keyboard. Passwords are printed as '*' on the screen. If you use it via copy-and-paste and paste it to, say, a safe web login or a login screen, there as well the password is printed as '*'. So, no information about the password is normally visible on the screen. However, if you paste it to, say, a plaintext text editor, then you and anyone else watching can see it on your screen.
+**Answer:** Not if you are careful. Passwords can be created with a "Generate random password" button click without the use of a keyboard. Passwords are printed as `*` on the screen. If you use it via copy-and-paste and paste it to, say, a safe web login or a login screen, there as well the password is printed as `*`. So, no information about the password is normally visible on the screen. However, if you paste it to, say, a plaintext text editor, then you and anyone else watching can see it on your screen.
 - - -
 **Question:** What can be stolen? How can it be stolen?
 
@@ -229,12 +230,13 @@ This string is stored in the QQtCore.QSettings.
 
 **Answer:** Yes. It is open source. Go to [Github](https://github.com/hiviah/TrezorPass).
 - - -
-**Question:** Can I migrate from another password manager such as KeePass or [Pass](https://www.passwordstore.org/) or others to TrezorPass?
+**Question:** Can I migrate from another password manager such as [KeePass](http://keepass.info/) or [Pass](https://www.passwordstore.org/) or others to TrezorPass?
 
 **Answer:** Yes. But it is not a one-click or two-click affair.
 
 * Step 1: export your passwords from the original password manager to a plaintext CSV or plain text file. You might want to do this on a secure or air-gapped computer or with a [LiveDvd OS](https://en.wikipedia.org/wiki/Live_DVD) if you have one available.
-* Step 2: Modify the CSV file mannually or via script so that it follows the required TrezorPass CSV import standard. The required TrezorPass CSV import standard is very simple: 4-element-tuplets separated by comma (,) and possibly quoted ("). The 4-element tuplets are: group name, key, password, comments
+* Step 2: Modify the CSV file manually or via script so that it follows the required TrezorPass CSV import standard. The required TrezorPass CSV import standard is very simple: 4-element-tuplets separated by comma (`,`) and when needed quoted (`"`), with the
+letters slash (`\`) and quote (`"`) escaped with a slash (such as `\\` and `\"`). The 4-element tuplets are: group name, key, password, and comments.
 * Step 3: import this CSV file into TrezorPass. All entries found in the CSV file will be added to the existing database.
 * Examples of a valid CSV file format for import: Some sample lines
 
@@ -243,11 +245,66 @@ First Bank account,login,myloginname,
 foo@gmail.com,2-factor-authentication key,abcdef12345678,seed to regenerate 2FA codes
 foo@gmail.com,recovery phrase,"passwd with 2 commas , ,",
 foo@gmail.com,large multi-line comments,,"first line, some comma,
-second line"
+second line
+multi-lines are OK"
 phone,PIN,1234,my phone PIN
+phone,PIN2,1234,"comment with a slash \\ and  quote \" and more ..."
 ```
 
 More details [here](https://github.com/8go/TrezorPass/pull/6).
+- - -
+**Question:** How do I migrate from KeePass2 to TrezorPass?
+
+**Answer:** Specifically for [Keepass version 2](http://keepass.info/) a migration program was written than allows easy migration to TrezorPass. You can find it in the same directory as `TrezorPass`. It is called `convertKeePass2XmlToTrezorPassCsv.py`. To see how it works run this command
+```
+python convertKeePass2XmlToTrezorPassCsv.py -h
+```
+It will print the following help message:
+```
+convertKeePass2XmlToTrezorPassCsv.py [-v] [-h] [-i <keepass2.xml>] [-o <trezorpass.csv>]
+    -v, --version
+            print the version number
+    -h, --help
+            print help text
+    -i, --input
+            name of XML file generated from KeePass2 export
+    -o, --output
+            name of CSV file generated by this program which can then be imported into TrezorPass
+
+    All arguments are optional.
+
+    By default it expects the input file to be named "keepass2.xml".
+
+    By default it creates the output file named "trezorpass.csv". If it
+    already exists it will be overwritten.
+
+    The purpose of this program is to migrate a KeePass2 database to TrezorPass.
+    This is done in a 3-Step process.
+
+    Step 1: Open KeePass2, using the `File | Export` function in the menu, export
+    your .kdb file to an XML file of type `KeePass XML (2.x)`. Name the output file
+    `keepass2.xml`. KeePass2 also allows partial exports, like only exporting
+    your entries in the group `eMail`.
+
+    Step 2: Run this program `convertKeePass2XmlToTrezorPassCsv`. It will convert
+    the `keepass2.xml` file into a CSV file named `trezorpass.csv`. Be careful,
+    if that file exists, it will be overwritten. Optionally, if desired, you
+    can make manual changes to the `trezorpass.csv` file.
+
+    Step 3: Open TrezorPass and use the `Import plaintext CSV file`
+    function from the menu to import the `trezorpass.csv` file. All information
+    from the `trezorpass.csv` file will be added to any existing information
+    in the TrezorPass password database. Optionally, if desired, create an
+    empty TrezorPass password database first.
+
+    Examples:
+    # normal operation, expects file `keepass2.xml` to exist
+    convertKeePass2XmlToTrezorPassCsv.py
+
+    # operation with non-standard filenames
+    convertKeePass2XmlToTrezorPassCsv.py -i keepassEmail.xml -o trezorpassEmail.csv
+```
+
 - - -
 **Question:** Am I locked into TrezorPass? Can I migrate from TrezorPass to another password manager such as KeePass or [Pass](https://www.passwordstore.org/) or others?
 

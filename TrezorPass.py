@@ -644,13 +644,15 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 		with file(fname, "r") as f:
 			csv.register_dialect("escaped", doublequote=False, escapechar='\\')
 			reader = csv.reader(f, dialect="escaped")
-			groupNames = self.pwMap.groups.keys()
 			for csvEntry in reader:
+				processing.reportLogging("CSV Entry: len=%d 0=%s" % (len(csvEntry), csvEntry[0]),
+					logging.DEBUG, "CSV import", self.settings, self.logger)
 				processing.reportLogging("CSV Entry: 0=%s, 1=%s, 2=%s, 3=%s" %
 					(csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]), logging.DEBUG,
 					"CSV import", self.settings, self.logger)
 				groupName, key, plainPw, plainComments = csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]
-				if groupName not in groupNames:	# groups are unique
+				groupNames = self.pwMap.groups.keys()
+				if groupName not in groupNames:  # groups are unique
 					self.pwMap.addGroup(groupName)
 					item = QtGui.QStandardItem(s2q(groupName))
 					self.groupsModel.appendRow(item)
@@ -664,7 +666,7 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 				plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
 				encPw = self.pwMap.encryptPassword(plainPwComments, groupName)
 				bkupPw = self.pwMap.backupKey.encryptPassword(plainPwComments)
-				group.addEntry(key, encPw, bkupPw) # keys are not unique, multiple items with same key are allowed
+				group.addEntry(key, encPw, bkupPw)  # keys are not unique, multiple items with same key are allowed
 			self.groupsTree.sortByColumn(0, QtCore.Qt.AscendingOrder)
 			self.setModified(True)
 

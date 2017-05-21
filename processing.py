@@ -55,7 +55,7 @@ class Settings(object):
 
 def usage():
 	print """TrezorPass.py [-v] [-h] [-l <level>] [-p <passphrase>] [[-d] -f <pwdbfile>]
-		-v, --verion
+		-v, --version
 				print the version number
 		-h, --help
 				print short help text

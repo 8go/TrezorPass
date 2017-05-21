@@ -13,3 +13,5 @@ build/
 dist/
 TrezorPass.spec
 
+trezorpass.csv
+keepass2.xml
