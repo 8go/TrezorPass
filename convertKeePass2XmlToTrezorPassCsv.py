@@ -1,19 +1,23 @@
 #!/usr/bin/env python
 
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
 import sys
 import os
 import getopt
 import xml.etree.ElementTree as ET
 import csv
 
-Version = "1.0"
-VersionDate = "May 2017"
-ifile = "keepass2.xml"
-ofile = "trezorpass.csv"
+Version = u'1.1'
+VersionDate = u'May 2017'
+ifile = u'keepass2.xml'
+ofile = u'trezorpass.csv'
 
 
 def usage():
-	print """convertKeePass2XmlToTrezorPassCsv.py [-v] [-h] [-i <keepass2.xml>] [-o <trezorpass.csv>]
+	print('''convertKeePass2XmlToTrezorPassCsv.py [-v] [-h] [-i <keepass2.xml>] [-o <trezorpass.csv>]
 		-v, --version
 				print the version number
 		-h, --help
@@ -55,55 +59,60 @@ def usage():
 
 		# operation with non-standard filenames
 		convertKeePass2XmlToTrezorPassCsv.py -i keepassEmail.xml -o trezorpassEmail.csv
-		"""
+
+		Works in Python 2.7 and 3.4+.
+		Tested on Linux on Python 2.7.9 and 3.4.2.
+		Tested with KeePass v2.28.
+		''')
 
 
 def printVersion():
 	"""
 	Show about and version information.
 	"""
-	print("Version: %s from %s" % (Version, VersionDate))
-	print("About convertKeePass2XmlToTrezorPassCsv: This program helps you \n"
-		"to migrate your KeePass2 password database to TrezorPass.")
+	print('Version: %s from %s' % (Version, VersionDate))
+	print('About convertKeePass2XmlToTrezorPassCsv: This program helps you \n'
+		'      to migrate your KeePass v2 password database to TrezorPass.')
 
 
 def parseArgs(argv):
+	global ifile, ofile
 	try:
-		opts, args = getopt.getopt(argv, "vhi:o:",
-			["version", "help", "input=", "output="])
-	except getopt.GetoptError, e:
+		opts, args = getopt.getopt(argv, 'vhi:o:',
+			['version', 'help', 'input=', 'output='])
+	except getopt.GetoptError as e:
 		print('Wrong arguments. Error: %s.', str(e))
 		sys.exit(2)
 	for opt, arg in opts:
-		if opt in ("-h", "--help"):
+		if opt in ('-h', '--help'):
 			usage()
 			sys.exit()
-		elif opt in ("-v", "--version"):
+		elif opt in ('-v', '--version'):
 			printVersion()
 			sys.exit()
-		elif opt in ("-i", "--input"):
+		elif opt in ('-i', '--input'):
 			ifile = arg
-		elif opt in ("-o", "--output"):
+		elif opt in ('-o', '--output'):
 			ofile = arg
 
 	if len(args) != 0:
-		print("Incorrect arguments %s found in command line. "
-			"Correct your input." % str(args))
+		print('Incorrect arguments %s found in command line. '
+			'Correct your input.' % str(args))
 		sys.exit(20)
 
 	if not os.path.isfile(ifile):
-		print("File \"%s\" does not exist, is not a proper file, "
-			"or is a directory. Aborting." % ifile)
+		print('File "%s" does not exist, is not a proper file, '
+			'or is a directory. Aborting.' % ifile)
 		sys.exit(21)
 	if not os.access(ifile, os.R_OK):
-		print("File \"%s\" cannot be read. No read permissions. "
-			"Aborting." % ifile)
+		print('File "%s" cannot be read. No read permissions. '
+			'Aborting.' % ifile)
 		sys.exit(22)
 	if os.path.isfile(ofile):
-		print("File \"%s\" already exist. It wil be overwritten." % ofile)
+		print('File "%s" already exist. It will be overwritten.' % ofile)
 		if not os.access(ofile, os.W_OK):
-			print("File \"%s\" cannot be written. No write permissions. "
-				"Aborting." % ofile)
+			print('File "%s" cannot be written. No write permissions. '
+				'Aborting.' % ofile)
 			sys.exit(22)
 
 
@@ -117,104 +126,118 @@ def calculateDepth(member, currDepth):
 
 
 def printCvs(ofile):
-	with file(ofile, "r") as f:
-		csv.register_dialect("escaped", doublequote=False, escapechar='\\')
-		reader = csv.reader(f, dialect="escaped")
+	with open(ofile, 'r') as f:
+		csv.register_dialect('escaped', doublequote=False, escapechar='\\')
+		reader = csv.reader(f, dialect='escaped')
 		for csvEntry in reader:
 			try:
-				print("CSV Entry: 0=%s, 1=%s, 2=%s, 3=%s" %
+				print('CSV Entry: 0=%s, 1=%s, 2=%s, 3=%s' %
 					(csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]))
 			except Exception as e:
-				print("ERROR: length of row = %d, row entry 0 = %s, Error text = %s" %
+				print('ERROR: length of row = %d, row entry 0 = %s, Error text = %s' %
 					(len(csvEntry), csvEntry[0], e))
 
 
 def escape(str):
 	"""
-	Keepass escapes " as "". Nothing else.
 	We need to escape \ as \\.
 	"""
+	if str is None or str == u'':
+		return u''
 	return str.replace('\\', '\\\\')
 
 
-def writeEntriesToList(tree, member, currDepth, currGroupName, max, entry_list, csvwriter):
+def writeEntriesToList(member, currDepth, currGroupName, max, entry_list, csvwriter):
 	# the root group in Keepass is the name of the .kdb file,
 	# this might be more molesting than useful. So, let us skip it.
 	skipRootName = True
 	for submember in member.findall('Group'):
-		mname = submember.find('Name').text.encode('utf-8')  # name of Group in XML
+		mname = submember.find('Name').text  # name of Group in XML
 		if skipRootName:
 			if currDepth <= 0:
-				mname = ""
-		if currGroupName != "":
-			mname = "--" + mname
-		writeEntriesToList(tree, submember, currDepth+1, currGroupName + mname, max, entry_list, csvwriter)
+				mname = u''
+		if currGroupName != u'':
+			mname = u'--' + mname
+		writeEntriesToList(submember, currDepth+1, currGroupName + mname, max, entry_list, csvwriter)
 	for submember in member.findall('Entry'):
 		dict = {}
 		for strmember in submember.findall('String'):
-			#  ET.dump(submember)
+			#  ET.dump(submember)  # Debug
 			entry = []
-			mkey = strmember.find('Key').text.encode('utf-8')
+			mkey = strmember.find('Key').text
 			try:
-				mval = strmember.find('Value').text.encode('utf-8')
+				mval = strmember.find('Value').text
 			except Exception:
-				print("Info: No value given for key '%s' (group: %s), moving on ..." % (mkey, currGroupName))
-				mval = ''
+				print('Info: No value given for key "%s" (group: %s), moving on ...' % (mkey, currGroupName))
+				mval = u''
 			dict[mkey] = mval
 
 		entry = []
-		sep = ""
-		if currGroupName != "":
-			sep = "--"
+		sep = u''
+		if currGroupName != u'':
+			sep = u'--'
 
 		entry.append(escape(currGroupName + sep + dict['Title']))
-		entry.append('UserName')
-		if 'UserName' in dict:
+		entry.append(u'UserName')
+		if u'UserName' in dict:
 			entry.append(escape(dict['UserName']))
 		else:
-			entry.append('')
-		entry.append('')
+			entry.append(u'')
+		entry.append(u'')
 		csvwriter.writerow(entry)
 		entry_list.append(entry)
 
 		entry = []
 		entry.append(escape(currGroupName + sep + dict['Title']))
-		entry.append('Password')
-		if 'Password' in dict:
+		entry.append(u'Password')
+		if u'Password' in dict:
 			entry.append(escape(dict['Password']))
 		else:
-			entry.append('')
-		entry.append('')
+			entry.append(u'')
+		entry.append(u'')
 		csvwriter.writerow(entry)
 		entry_list.append(entry)
 
 		entry = []
 		entry.append(escape(currGroupName + sep + dict['Title']))
-		entry.append('URL')
-		if 'URL' in dict:
+		entry.append(u'URL')
+		if u'URL' in dict:
 			entry.append(escape(dict['URL']))
 		else:
-			entry.append('')
-		entry.append('')
+			entry.append(u'')
+		entry.append(u'')
 		csvwriter.writerow(entry)
 		entry_list.append(entry)
 
 		entry = []
 		entry.append(escape(currGroupName + sep + dict['Title']))
-		entry.append('Notes')
-		entry.append('')
-		if 'Notes' in dict:
+		entry.append(u'Notes')
+		entry.append(u'')
+		if u'Notes' in dict:
 			entry.append(escape(dict['Notes']))
 		else:
-			entry.append('')
-		csvwriter.writerow(entry)
+			entry.append(u'')
 		entry_list.append(entry)
+		try:
+			#  This works in Python 3
+			#  This fails in Python 2.7 because ASCII codec cannot hold Unicode chars
+			csvwriter.writerow(entry)
+		except UnicodeEncodeError:
+			# This code works under Python 2.7
+			# The strings in the list can contain Unicode chars.
+			# Writerow() writes ASCII.
+			# Unicode chars do not fit into ASCII, so we have to encode strings first.
+			entryunicode = []
+			for el in entry:
+				entryunicode.append(el.encode('utf-8'))
+			csvwriter.writerow(entryunicode)
 		dict.clear()
 		del dict
 
 
 def main():
-	print("Starting to parse input file \"%s\"." % (ifile))
+	parseArgs(sys.argv[1:])
+	print('Starting to parse input file "%s".' % (ifile))
 	tree = ET.parse(ifile)
 	root = tree.getroot()
 
@@ -222,10 +245,10 @@ def main():
 	with open(ofile, 'w') as f:
 		root = root.find('Root')
 		max = calculateDepth(root, 0)
-		print("There are %d levels in the hierarchy of the XML file." % max)
-		csv.register_dialect("escaped", doublequote=False, escapechar='\\')
+		print('There are %d levels in the hierarchy of the XML file.' % max)
+		csv.register_dialect('escaped', doublequote=False, escapechar='\\')
 		# create the csv writer object
-		csvwriter = csv.writer(f, dialect="escaped")
+		csvwriter = csv.writer(f, dialect='escaped')
 		entry_list = []
 		#  entry = []
 		#  entry.append('Groupname')
@@ -233,12 +256,12 @@ def main():
 		#  entry.append('Value/Password')
 		#  entry.append('Comments')
 		#  csvwriter.writerow(entry)
-		writeEntriesToList(tree, root, 0, "", max, entry_list, csvwriter)
+		writeEntriesToList(root, 0, u'', max, entry_list, csvwriter)
 
-	print("Produced output file \"%s\"." % ofile)
-	print("Entries are in 4 columns as follows: Groupname, Key, Value/Password, Comments")
-	#  printCvs(ofile)
+	print('Produced output file "%s".' % ofile)
+	print('Entries are in 4 columns as follows: Groupname, Key, Value/Password, Comments')
+	# printCvs(ofile)  # Debug
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
 	main()
