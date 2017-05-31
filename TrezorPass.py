@@ -575,8 +575,8 @@ class MainWindow(QtGui.QMainWindow, Ui_MainWindow):
 			"Password Manager application for people owning a Trezor who prefer to " +
 			"keep their passwords local and not on the cloud. All passwords are " +
 			"stored locally in a single file.<br><br>" +
-			"<b>Version: </b>" + basics.TREZORPASSSOFTWAREVERSION +
-			" from " + basics.TREZORPASSSOFTWAREVERSIONTEXT)
+			"<b>Version: </b>" + basics.VERSION_STR +
+			" from " + basics.VERSION_DATE_STR)
 		msgBox.setIconPixmap(QPixmap("icons/TrezorPass.svg"))
 		msgBox.exec_()
 
@@ -917,7 +917,7 @@ def updatePwMapFromV1ToV2(pwMap, settings):
 
 # root
 
-logging.basicConfig(stream=sys.stderr, level=basics.LOGGINGLEVEL)
+logging.basicConfig(stream=sys.stderr, level=basics.DEFAULT_LOG_LEVEL)
 logger = logging.getLogger('tp') # tp for TrezorPass
 
 app = QtGui.QApplication(sys.argv)

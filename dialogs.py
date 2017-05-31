@@ -154,7 +154,7 @@ class InitializeDialog(QtGui.QDialog, Ui_InitializeDialog):
 		"""
 		path = QtCore.QDir.currentPath()
 		dialog = QtGui.QFileDialog(self, "Select password database file",
-			path, "(*"+basics.TREZORPASSPWDBFILEEXT+")")
+			path, "(*"+basics.PWDB_FILEEXT+")")
 		dialog.setAcceptMode(QtGui.QFileDialog.AcceptSave)
 
 		res = dialog.exec_()

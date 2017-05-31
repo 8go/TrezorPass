@@ -31,7 +31,7 @@ KEYSIZE = 32
 #version 2 stores password and comments in the value part of the key-value pair
 #version 2 software opens a version 1 pwdb file and stores it as version 2; version 1 software cannot open a version 2 pwdb file.
 #i.e. v2 is backwards compatible (v2 software can open v1 dbpw file) but not forwards compatible (v1 software cannot open v2 dbpw file).
-PWDBVERSION = basics.TREZORPASSPWDBFILEFORMATVERSION
+PWDBVERSION = basics.PWDB_FILEFORMAT_VERSION
 
 class PasswordGroup(object):
 	"""

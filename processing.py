@@ -92,7 +92,7 @@ def printVersion():
 	"""
 	Show about and version information.
 	"""
-	print "Version: %s from %s" % (basics.TREZORPASSSOFTWAREVERSION, basics.TREZORPASSSOFTWAREVERSIONTEXT)
+	print "Version: %s from %s" % (basics.VERSION_STR, basics.VERSION_DATE_STR)
 	print("About TrezorPass: TrezorPass is a safe Password Manager application \n"
 		"for people owning a Trezor who prefer to keep their passwords local \n"
 		"and not on the cloud. All passwords are stored locally in a single file.")
@@ -137,10 +137,10 @@ def parseArgs(argv, settings, logger):
 				"Must be integer between 1 and 5. (%s)" % loglevelarg, logging.CRITICAL,
 				"Wrong arguments", settings, logger)
 			sys.exit(19)
-		basics.LOGGINGLEVEL = loglevel * 10 # https://docs.python.org/2/library/logging.html#levels
-		logger.setLevel(basics.LOGGINGLEVEL)
+		basics.DEFAULT_LOG_LEVEL = loglevel * 10 # https://docs.python.org/2/library/logging.html#levels
+		logger.setLevel(basics.DEFAULT_LOG_LEVEL)
 		logger.info('Logging level set to %s (%d).',
-			logging.getLevelName(basics.LOGGINGLEVEL), basics.LOGGINGLEVEL)
+			logging.getLevelName(basics.DEFAULT_LOG_LEVEL), basics.DEFAULT_LOG_LEVEL)
 
 	if len(args) != 0:
 		reportLogging("Incorrect arguments %s found in command line. "
