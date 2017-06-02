@@ -7,14 +7,10 @@ TrezorPass is a PyQt-based password manager that uses the [Trezor](http://www.tr
 hardware token to do encryption of passwords. It is similar to KeepassX or
 kwalletmanager in function. It can store passwords, logons, URLs, PINs, comments, etc.
 
-The Password database is stored in encrypted form in a single file on computer.
-No access to internet is required for its use. It allows an unlimited
+The Password database is stored in encrypted form in a single file on your computer.
+No access to the internet is required for its use. It allows an unlimited
 count of password entries to be stored and enables the possibility of recovery
 if your original Trezor is misplaced (mnemonic and passphrase are required to recover).
-
-Note that this is alpha software.
-
-Trezor must be already set up to use passphrase.
 
 Below  a sample screenshot. More screenshots [here](screenshots).
 
@@ -45,28 +41,45 @@ Below  a sample screenshot. More screenshots [here](screenshots).
 
 # Runtime requirements
 
-  * Python 2.7
-  * PyCrypto
-  * PyQt4
-  * [trezorlib from python-trezor](https://github.com/trezor/python-trezor)
+* Use of passphrases must have been already enabled on your [Trezor](https://www.trezor.io) device.
+* [Trezor](https://www.trezor.io) device
+* [Python](https://www.python.org/) v2.7 or 3.4+
+* [PyCrypto](https://pypi.python.org/pypi/pycrypto)
+* [PyQt5](https://pypi.python.org/pypi/PyQt5)
+* [Qt5](https://doc.qt.io/qt-5/)
+* [trezorlib from python-trezor](https://github.com/trezor/python-trezor)
+* [Versions 0.5.0 and older used PyQy4 instead of PyQy5. Read the README.md
+file of v0.5.0 for build requirements, dependencies, etc. Basically anything
+relating to PyQt5 has to be replaced with the corresponding component in PyQt4.
+`pyuic5` becomes `pyuic4`. `pyqt5-dev-tools` becomes `pyqt4-dev-tools`
+and so forth.]
 
 # Building
 
-Even though the whole code is in Python, there are few Qt .ui form files that
-need to be transformed into Python files. There's Makefile, you just need to run
+Even though the whole code is in Python, there are few Qt5 `.ui` form files that
+need to be transformed into Python files. There is `Makefile`, you just need to run
 
     make
 
 ## Build requirements
 
-PyQt4 development tools are necessary, namely `pyuic4` (look for packages named
-like `pyqt4-dev-tools` or `PyQt4-devel`).
+* PyQt5 development tools are necessary, namely `pyuic5` (look for a package named
+`pyqt5-dev-tools`, `PyQt5-devel` or similar). Required to run `make`.
+* Depending on one's set-up one might need: `qttools5-dev-tools`
+(also sets up some of the Qt5 environment variables)
+* Depending on one's set-up one might need: `python-pyqt5` (Qt5 bindings for Python 2)
+* Depending on one's set-up one might need: `python3-pyqt5` (Qt5 bindings for Python 3)
+* Depending on one's set-up one might need: `python-pyqt5.qtsvg` (to display SVG logos in Python 2)
+* Depending on one's set-up one might need: `python3-pyqt5.qtsvg` (to display SVG logos in Python 3)
 
 # Running
 
 Run:
 
     python TrezorPass.py
+or
+
+    python3 TrezorPass.py
 
 On rare occasions one of the command line arguments might become useful:
 
@@ -111,6 +124,15 @@ See also [gpg on Trezor](https://github.com/romanz/trezor-agent/).
 
 # FAQ - Frequently Asked Questions
 
+**Question:** Can I help or contribute?
+
+**Answer:**
+
+Yes, you can. It would help a lot if you assist in getting the word out.
+If you like the tool or like the idea please spread the word on Twitter, Reddit,
+Facebook, etc. It will be appreciated. Furthermore, you can blog about it,
+give feedback, review the code, contribute to the code, etc.
+- - -
 **Question:** I read something about an RSA key somewhere? Do I need to
 create it? Can I use my own? Where is it? How many bits is it?
 
@@ -148,7 +170,7 @@ This string is stored in the QQtCore.QSettings.
 - - -
 **Question:** In which language is TrezorPass written?
 
-**Answer:** [Python](https://www.python.org/) 2.7. It will currently not run on Python 3.
+**Answer:** [Python](https://www.python.org/). It run on Python 2.7 and 3.4+.
 - - -
 **Question:** Do I need to have a [Trezor](https://www.trezor.io/) in order to use TrezorPass?
 
@@ -216,7 +238,7 @@ This string is stored in the QQtCore.QSettings.
 - - -
 **Question:** Is TrezorPass portable?
 
-**Answer:** Yes. You can have all information on 2 files: the TrezorPass application and the password database file. Copy the 2 files (executable and data) onto a USB stick or SD card and carry them with you together with your Trezor. (Maybe in the future the files might be stored on the Trezor 2 on-device storage? Who knows?)
+**Answer:** Yes. You can have all information on 2 files: the TrezorPass application and the password database file. Copy the 2 files (executable and data) onto a USB stick or SD card and carry them with you together with your Trezor. (Maybe in the future the files might be stored on the `Trezor 2` on-device storage? Pure speculation but Who knows?)
 - - -
 **Question:** Can I use TrezorPass on multiple computers? Can I sync it on multiple devices/computers?
 
@@ -319,7 +341,7 @@ convertKeePass2XmlToTrezorPassCsv.py [-v] [-h] [-i <keepass2.xml>] [-o <trezorpa
 - - -
 **Question:** What if I lose my password database file?
 
-**Answer:** Then you lost all your passwords. The passwords are **not** stored on the Trezor. The passwords are only stored in the password database file. So keep it safe. (Trezor 2 does not exist yet, but it might come with on-device storage in the future. In this future case you might store a copy of the password database file on the device. But even then you should keep a copy somewhere else as well.)
+**Answer:** Then you lost all your passwords. The passwords are **not** stored on the Trezor. The passwords are only stored in the password database file. So keep it safe. (`Trezor 2` does not exist yet, but it might come with on-device storage in the future. In this future case you might store a copy of the password database file on the device. But even then you should keep a copy somewhere else as well.)
 - - -
 **Question:** Should I backup my password database file?
 
@@ -331,7 +353,22 @@ convertKeePass2XmlToTrezorPassCsv.py [-v] [-h] [-i <keepass2.xml>] [-o <trezorpa
 - - -
 **Question:** On which platforms, operating systems is TrezorPass available?
 
-**Answer:** On all platforms, operating systems where [Python](https://www.python.org/) 2.7 and [PyQt](https://en.wikipedia.org/wiki/PyQt) v4 is available: Windows, Linux, Unix, Mac OS X. Internet searches show Python and PyQt solutions for Android and iOS, but it has not been investigated or tested on Android or iOS.
+**Answer:** On all platforms, operating systems where [Python](https://www.python.org/) 2.7 or 3.4+ and [PyQt](https://en.wikipedia.org/wiki/PyQt) v5 is available: Windows, Linux, Unix, Mac OS X. Internet searches show Python and PyQt solutions for Android and iOS, but it has not been investigated, built or tested on Android or iOS. It was only tested on Linux.
+- - -
+**Question:** Can I run on Qt4?
+
+**Answer:** Yes, there is an old version (v3.0) that supports Qt4. Newer versions do not support PyQt4 but require PyQt5.
+- - -
+**Question:** Can I migrate from Python 2 to Python 3?
+
+**Answer:** Yes, TrezorPass runs on both. So, you easily move your environment from Python 2 to Python 3.
+- - -
+**Question:** Can I migrate from Python 3 back to Python 2?
+
+**Answer:** TrezorPass runs on both but the implementation of `pickle` is different on both versions.
+The TrezorPass passwordd database file uses `pickle`. When you move from Python 3 back to Python 2 and
+then want to run TrezorPass, you will get the error message `Critical: Could not decrypt passwords: unsupported pickle protocol: 4`and the program aborts. The workaround is to export your database to a CSV file in Python 3, then start with
+an empty database file in Python 2 and import the CSV file. Then you are ready to go.
 - - -
 **Question:** Are there any warranties or guarantees?
 
@@ -341,3 +378,14 @@ convertKeePass2XmlToTrezorPassCsv.py [-v] [-h] [-i <keepass2.xml>] [-o <trezorpa
 
 **Answer:** Let us know.
 - - -
+
+# To-do List
+
+- [ ] Add a `Show All` right-click item in the password list to show all passwords and all comments with one click.
+- [ ] Add command line arguments to the CLI such as `--add group key password comment`,
+        `--show group key`, `--showcomments group key` or `--delete group [key]` and using `xsel` even `--paste group key`.
+- [ ] Spread the information about the availability of this tool on social
+networks like Reddit, Twitter or Facebook. Any help appreciated.
+
+
+</> on :octocat: with :heart:
