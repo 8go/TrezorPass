@@ -213,17 +213,10 @@ class PasswordMap(object):
 
 			serialized = self.decryptOuter(encrypted, self.outerIv)
 
-			# group = PasswordGroup()#####zzzz
-			# group.addEntry(u'ABC', b'def', b'ghi')
-			# groups = {}
-			# groups[u'kkeeyy'] = group
-			# serialized = pickle.dumps(groups, pickle.HIGHEST_PROTOCOL)
-			# print(group)
-
 			# Py2-vs-Py3: loads in Py2 does only have 1 arg, all 4 args are required for Py3
 			if sys.version_info[0] < 3:  # Py2-vs-Py3:
 				self.groups = pickle.loads(serialized)
-				print('zzz',self.groups.keys()[0], self.groups[self.groups.keys()[0]])##zz delete
+				# example record: print('example',self.groups.keys()[0], self.groups[self.groups.keys()[0]])
 			else:
 				# loads is different in Py3
 				tmpGroups = pickle.loads(serialized, fix_imports=True, encoding='bytes', errors='strict')
@@ -232,8 +225,7 @@ class PasswordMap(object):
 				if len(tmpGroups) > 0 and isinstance(list(tmpGroups.keys())[0], bytes):
 					tmpGroups = processing.migrateUnpickledDataFromPy2ToPy3(tmpGroups, self.settings)
 				self.groups = tmpGroups
-				print('zzz2',list(self.groups.keys())[0], self.groups[list(self.groups.keys())[0]])##zz delete
-
+				# example record: print('example',list(self.groups.keys())[0], self.groups[list(self.groups.keys())[0]])
 
 	def save(self, fname):
 		"""

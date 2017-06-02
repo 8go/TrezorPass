@@ -14,7 +14,7 @@ default values, etc.
 NAME = u'TrezorPass'
 
 # Name of software version
-VERSION_STR = u'v4.0'
+VERSION_STR = u'v4.1'
 
 # Date of software version
 VERSION_DATE_STR = u'June 2017'

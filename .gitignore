@@ -1,17 +1,3 @@
-.*.swp
-*.pyc
-*.kpf
 
-ui_*py
-TrezorPass.pro.user
-trezorlib
-*.pwdb*
+trezorpass.csv.org
 
-Crypto
-
-build/
-dist/
-TrezorPass.spec
-
-trezorpass.csv
-keepass2.xml

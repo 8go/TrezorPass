@@ -145,12 +145,9 @@ class AddPasswordDialog(QDialog, Ui_AddPasswordDialog):
 		self.trezor = trezor
 
 	def key(self):
-		print('zzz key "%s" %s' % (encoding.normalize_nfc(self.keyEdit.text()), type(encoding.normalize_nfc(self.keyEdit.text()))))
 		return encoding.normalize_nfc(self.keyEdit.text())
 
 	def pw1(self):
-		print('zzz pw1 "%s" %s' % (encoding.normalize_nfc(self.pwEdit1.text()), type(encoding.normalize_nfc(self.pwEdit1.text()))))
-		print('zzz ty %s %s' % (self.pwEdit1.text(), type(self.pwEdit1.text())))
 		return encoding.normalize_nfc(self.pwEdit1.text())
 
 	def pw2(self):
@@ -158,12 +155,10 @@ class AddPasswordDialog(QDialog, Ui_AddPasswordDialog):
 
 	def comments(self):
 		doc = self.commentsEdit.document().toPlainText()
-		print('zzz doc %s.' % doc)
 		if doc is None:
 			doc = u''
 		else:
 			doc = encoding.normalize_nfc(doc)
-		print('zzz doc %s.' % doc)
 		return doc
 
 	def validatePw(self):

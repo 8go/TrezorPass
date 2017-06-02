@@ -7,23 +7,16 @@ from __future__ import print_function
 import sys
 import logging
 import os.path
-import csv
-import time
-from Crypto import Random
 from shutil import copyfile
 
 from PyQt5.QtWidgets import QApplication  # for the clipboard and window
 
 from dialogs import MainWindow
 
-import basics
-import utils
 import settings
-import encoding
 import processing
 import trezor_app_generic
 import password_map
-from backup import Backup
 
 """
 The file with the main function.
@@ -83,7 +76,6 @@ def main():
 	trezor.prefillReadpinfromstdin(sets.TArg)
 	trezor.prefillReadpassphrasefromstdin(sets.TArg)
 	trezor.prefillPassphrase(sets.passphrase())
-	trezor.prefillPassphrase(u'trezorpass')###sremove this line'!!! zzzz
 
 	pwMap = password_map.PasswordMap(trezor, sets)
 

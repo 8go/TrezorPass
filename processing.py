@@ -90,40 +90,44 @@ def migrateUnpickledDataFromPy2ToPy3(groupsDict, settings):
 	settings.mlogger.log("Trying to migrate TrezorPass database \"%s\" "
 		"from Python 2 ro Python3." % settings.dbFilename, logging.DEBUG,
 		"TrezorPass database")
-	print('zzz3',groupsDict)
+	#### this function requires cleanup and documentation! zzz
+	# print(groupsDict)
 	groupsNew = {}  # PasswordGroup()
 	ii = 0
 	for groupName in groupsDict:
 		ii += 1
-		print('groupName %s' % (groupName))
+		#print('groupName %s' % (groupName))
 		pwGroup = groupsDict[groupName]
-		print('\n pwGroup %s %s' % (pwGroup, type(pwGroup)))
-		print('\n groupName %s %s' % (groupName, type(groupName)))  # Py2: str, Py3: bytes
+		#print('\n pwGroup %s %s' % (pwGroup, type(pwGroup)))
+		#print('\n groupName %s %s' % (groupName, type(groupName)))  # Py2: str, Py3: bytes
 		groupsNew[normalize_nfc(groupName)] = PasswordGroup()
-		print('groupsNew')
-		pprint(groupsNew)
-		pprint(dict(groupsNew))
-		print('groupNew')
-		pprint(groupsNew[normalize_nfc(groupName)])
-		pprint(vars(groupsNew[normalize_nfc(groupName)]))
-		print('pwGroup')
-		pprint(vars(pwGroup))
+		#print('groupsNew')
+		#pprint(groupsNew)
+		#pprint(dict(groupsNew))
+		#print('groupNew')
+		#pprint(groupsNew[normalize_nfc(groupName)])
+		#pprint(vars(groupsNew[normalize_nfc(groupName)]))
+		#print('pwGroup')
+		#pprint(vars(pwGroup))
 
 		mydict = pwGroup.__dict__
-		
-		print('\n mydict %s %s\n' % (mydict, type(mydict)))
+
+		#print('\n mydict %s %s\n' % (mydict, type(mydict)))
 		for instvarkey in mydict:
-			print('\n instvarkey %s %s\n' % (instvarkey, type(instvarkey)))  # bytes
+			#print('\n instvarkey %s %s\n' % (instvarkey, type(instvarkey)))  # bytes
 			instvarval = mydict[instvarkey]
-			print('\n instvarval %s %s\n' % (instvarval, type(instvarval)))  # list
+			#print('\n instvarval %s %s\n' % (instvarval, type(instvarval)))  # list
 			for triple in instvarval:
-				print('\n triple %s %s\n' % (triple, type(triple)))  # tuple
+				#print('\n triple %s %s\n' % (triple, type(triple)))  # tuple
 				key, encPw, bkupPw = triple
 				groupsNew[normalize_nfc(groupName)].addEntry(normalize_nfc(key), encPw, bkupPw)
-				print('groupNew')
-				pprint(groupsNew[normalize_nfc(groupName)])
-				pprint(vars(groupsNew[normalize_nfc(groupName)]))
-	print("\n %d groups migrated." % (ii))
+				#print('groupNew')
+				#pprint(groupsNew[normalize_nfc(groupName)])
+				#pprint(vars(groupsNew[normalize_nfc(groupName)]))
+	#print("\n %d groups migrated." % (ii))
+	settings.mlogger.log("%d password groups have been migrated "
+		"from Python 2 to Python3." % (ii), logging.DEBUG,
+		"TrezorPass database")
 
-	#pprint('zzz5',groupsNew)
+	#pprint(groupsNew)
 	return(groupsNew)
