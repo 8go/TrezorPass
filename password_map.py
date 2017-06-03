@@ -1,50 +1,58 @@
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+
+import sys
 import struct
-import cPickle
 import hmac
 import hashlib
+import logging
+import traceback
+import binascii
+try:
+	import cPickle as pickle
+except Exception:
+	import pickle
 
 from Crypto.Cipher import AES
 from Crypto import Random
 
+from trezorlib.client import CallException, PinException
+
 import basics
+from encoding import normalize_nfc, tobytes, Padding
 from backup import Backup
+import processing
 
-from encoding import Magic, Padding
+"""
+On-disk format
+.4 bytes...header b'TZPW'
+.4 bytes...data storage version, network order uint32_t ==> see basics.PWDB_FILEFORMAT_VERSION
+32 bytes...AES-CBC-encrypted wrappedOuterKey
+16 bytes...IV
+.2 bytes...backup private key size (B)
+.B bytes...encrypted backup key
+.4 bytes...size of data following (N)
+.N bytes...AES-CBC encrypted blob containing pickled structure for password map
+32 bytes...HMAC-SHA256 over data with same key as AES-CBC data struct above
+"""
 
-## On-disk format
-#  4 bytes	header "TZPW"
-#  4 bytes	data storage version, network order uint32_t
-# 32 bytes	AES-CBC-encrypted wrappedOuterKey
-# 16 bytes	IV
-#  2 bytes	backup private key size (B)
-#  B bytes	encrypted backup key
-#  4 bytes	size of data following (N)
-#  N bytes	AES-CBC encrypted blob containing pickled structure for password map
-# 32 bytes	HMAC-SHA256 over data with same key as AES-CBC data struct above
-
-BLOCKSIZE = 16
+BLOCKSIZE = 16  # bytes
 MACSIZE = 32
-KEYSIZE = 32
+KEYSIZE = 32  # bytes
 
-# Data storage version, format of PWDB file
-#version 1 stores only the password in the value part of the key-value pair
-#version 2 stores password and comments in the value part of the key-value pair
-#version 2 software opens a version 1 pwdb file and stores it as version 2; version 1 software cannot open a version 2 pwdb file.
-#i.e. v2 is backwards compatible (v2 software can open v1 dbpw file) but not forwards compatible (v1 software cannot open v2 dbpw file).
-PWDBVERSION = basics.PWDB_FILEFORMAT_VERSION
 
 class PasswordGroup(object):
 	"""
 	Holds data for one password group.
-
 	Each entry has three values:
-	- key
-	- symetrically AES-CBC encrypted password unlockable only by Trezor
-	- RSA-encrypted password for creating backup of all password groups
+	1 key
+	2 symetrically AES-CBC encrypted password unlockable only by Trezor
+	3 RSA-encrypted password for creating backup of all password groups
 	"""
 
 	def __init__(self):
-		self.entries = []
+		self.entries = []  # list of tuples
 
 	def addEntry(self, key, encryptedValue, backupValue):
 		"""Add key-value-backup entry"""
@@ -65,30 +73,86 @@ class PasswordGroup(object):
 		"""Return entry with given index"""
 		return self.entries[idx]
 
+	def entrieslist(self):
+		"""Return entries"""
+		return(self.entries)
+
+	def __str__(self):
+		try:
+			ss = u'[\n'
+			for ee in self.entries:
+				ss += u'(\t%s\n\t%s\n\t%s\n)' % (normalize_nfc(ee[0]),
+					binascii.hexlify(ee[1]), binascii.hexlify(ee[2]))
+			return(ss+u'\n]')
+		except Exception:
+			ss = u'[\n'
+			mydict = self.__dict__
+			for instvarkey in mydict:
+				instvarval = mydict[instvarkey]
+				for ee in instvarval:
+					ss += u'(\t%s\n\t%s\n\t%s\n)' % (normalize_nfc(ee[0]),
+						normalize_nfc(binascii.hexlify(ee[1])),
+						normalize_nfc(binascii.hexlify(ee[2])))
+			return(ss+u'\n]')
+
+
 class PasswordMap(object):
 	"""Storage of groups of passwords in memory"""
 
-	MAXPADDEDTREZORENCRYPTSIZE = 1024
-	MAXUNPADDEDTREZORENCRYPTSIZE = MAXPADDEDTREZORENCRYPTSIZE - 1
+	MAX_PADDED_TREZOR_ENCRYPT_SIZE = 1024
+	MAX_UNPADDED_TREZOR_ENCRYPT_SIZE = MAX_PADDED_TREZOR_ENCRYPT_SIZE - 1
 
-	def __init__(self, trezor):
+	def __init__(self, trezor, settings):
 		assert trezor is not None
-		self.groups = {}
+		self.groups = {}  # dict with values being PasswordGroup instances
 		self.trezor = trezor
-		self.outerKey = None # outer AES-CBC key
+		self.outerKey = None  # outer AES-CBC key
 		self.outerIv = None  # IV for data blob encrypted with outerKey
-		self.backupKey = None
+		self.backupKey = None  # instance of class backup.Backup
 		self.version = None
+		self.settings = settings
+
+		rng = Random.new()
+		self.outerIv = rng.read(BLOCKSIZE)
+		self.outerKey = rng.read(KEYSIZE)
 
 	def addGroup(self, groupName):
 		"""
 		Add group by name as utf-8 encoded string
 		"""
-		groupName = groupName
 		if groupName in self.groups:
 			raise KeyError("Password group already exists")
 
 		self.groups[groupName] = PasswordGroup()
+
+	def loadWithChecks(self, fname):
+		"""
+		Same as load() but with extra checks.
+
+		@throws IOError: if reading file failed
+		"""
+		try:
+			self.load(fname)
+		except PinException:
+			self.settings.mlooger.log("Invalid Trezor PIN entered. Aborting.",
+				logging.CRITICAL, "Trezor IO")
+			sys.exit(8)
+		except CallException:
+			# this is never reached, there is a sys.exit in the Cancel button
+			self.settings.mlooger.log("User requested to quit (Esc, Cancel).",
+				logging.CRITICAL, "Trezor IO")
+			# button cancel on Trezor, so exit
+			sys.exit(6)
+		except IOError as e:
+			self.settings.mlogger.log("IO Error: Could not decrypt password "
+				"database file: %s" % (e), logging.CRITICAL, "Trezor IO")
+			sys.exit(5)
+		except Exception as e:
+			self.settings.mlogger.log("Could not decrypt passwords: %s "
+				"Aborting." % (e),
+				logging.CRITICAL, "Trezor IO")
+			traceback.print_exc()  # prints to stder
+			sys.exit(5)
 
 	def load(self, fname):
 		"""
@@ -97,14 +161,17 @@ class PasswordMap(object):
 
 		@throws IOError: if reading file failed
 		"""
-		with file(fname) as f:
-			header = f.read(len(Magic.headerStr))
-			if header != Magic.headerStr:
+		self.settings.mlogger.log("Trying to load file '%s'." % (fname),
+			logging.DEBUG, "File IO")
+		with open(fname, "rb") as f:
+			header = f.read(len(basics.Magic.headerStr))
+			if header != basics.Magic.headerStr:
 				raise IOError("Bad header in storage file")
 			version = f.read(4)
-			if len(version) != 4 or ( struct.unpack("!I", version)[0] != 1 and struct.unpack("!I", version)[0] != 2 ):
+			upkv = struct.unpack("!I", version)[0]
+			if len(version) != 4 or (upkv != 1 and upkv != 2):
 				raise IOError("Unknown version of storage file")
-			self.version = struct.unpack("!I", version)[0]
+			self.version = upkv
 
 			wrappedKey = f.read(KEYSIZE)
 			if len(wrappedKey) != KEYSIZE:
@@ -124,32 +191,75 @@ class PasswordMap(object):
 			self.backupKey = Backup(self.trezor)
 			serializedBackup = f.read(lb)
 			if len(serializedBackup) != lb:
-				raise IOError("Corrupted disk format - not enough encrypted backup key bytes")
-			self.backupKey.deserialize(serializedBackup)
+				raise IOError("Corrupted disk format - "
+				"not enough encrypted backup key bytes")
+			try:
+				self.backupKey.deserialize(serializedBackup)
+			except ValueError as e:
+				raise ValueError("Critical error reading database [bk]: '%s'\n"
+					"If error is `unsupported pickle protocol: 4` then you "
+					"are trying to open with Python 2 a database file created "
+					"with Python 3. Use Python 3 instead of Python 2. If you "
+					"must use Python 2, then export the databse to CSV in "
+					"Python 3 and import the CSV in Python 2." % (e))
 
 			ls = f.read(4)
 			if len(ls) != 4:
 				raise IOError("Corrupted disk format - bad data length")
-			l = struct.unpack("!I", ls)[0]
+			ll = struct.unpack("!I", ls)[0]
 
-			encrypted = f.read(l)
-			if len(encrypted) != l:
+			encrypted = f.read(ll)
+			if len(encrypted) != ll:
 				raise IOError("Corrupted disk format - not enough data bytes")
 
 			hmacDigest = f.read(MACSIZE)
 			if len(hmacDigest) != MACSIZE:
 				raise IOError("Corrupted disk format - HMAC not complete")
 
-			#time-invariant HMAC comparison that also works with python 2.6
+			# time-invariant HMAC comparison that also works with python 2.6
 			newHmacDigest = hmac.new(self.outerKey, encrypted, hashlib.sha256).digest()
 			hmacCompare = 0
 			for (ch1, ch2) in zip(hmacDigest, newHmacDigest):
 				hmacCompare |= int(ch1 != ch2)
 			if hmacCompare != 0:
-				raise IOError("Corrupted disk format - HMAC does not match or bad passphrase")
+				raise IOError("Corrupted disk format - HMAC does not match "
+					"or bad passphrase. Try with a different passphrase.")
 
 			serialized = self.decryptOuter(encrypted, self.outerIv)
-			self.groups = cPickle.loads(serialized)
+
+			# Py2-vs-Py3: loads in Py2 does only have 1 arg, all 4 args are required for Py3
+			if sys.version_info[0] < 3:  # Py2-vs-Py3:
+				try:
+					self.groups = pickle.loads(serialized)
+				except ValueError as e:
+					raise ValueError("Critical error reading database [pw]: '%s'\n"
+						"If error is `unsupported pickle protocol: 4` then you "
+						"are trying to open with Python 2 a database file created "
+						"with Python 3. Use Python 3 instead of Python 2. If you "
+						"must use Python 2, then export the databse to CSV in "
+						"Python 3 and import the CSV in Python 2." % (e))
+				# # print example record for debugging
+				# self.settings.mlogger.log("Group 0 as example: \n{%s : %s, ...}\n%s" %
+				# 	(self.groups.keys()[0], self.groups[self.groups.keys()[0]],
+				# 	vars(self.groups[self.groups.keys()[0]])),
+				# 	logging.DEBUG, "Unpickled data")
+			else:
+				# loads is different in Py3
+				tmpGroups = pickle.loads(serialized, fix_imports=True, encoding='bytes', errors='strict')
+				# on the first time we open a pwdb file written in Py2 with Py3
+				# we need to migrate the data to adjust to str vs bytes problem
+				try:
+					len(tmpGroups) > 0 and tmpGroups[list(tmpGroups.keys())[0]].entries
+				except AttributeError:
+					tmpGroups = processing.migrateUnpickledDataFromPy2ToPy3(tmpGroups, self.settings)
+				self.groups = tmpGroups
+				# # print example record for debugging
+				# self.settings.mlogger.log("Group 0 as example: \n{%s : %s, ...}\n%s" %
+				# 	(list(self.groups.keys())[0], self.groups[list(self.groups.keys())[0]],
+				# 	vars(self.groups[list(self.groups.keys())[0]])),
+				# 	logging.DEBUG, "Unpickled data")
+
+			self.groups = processing.migrateToUnicode(self.groups, self.settings)
 
 	def save(self, fname):
 		"""
@@ -163,13 +273,13 @@ class PasswordMap(object):
 		self.outerIv = rnd.read(BLOCKSIZE)
 		wrappedKey = self.wrapKey(self.outerKey)
 
-		with file(fname, "wb") as f:
-			version = PWDBVERSION
-			f.write(Magic.headerStr)
+		with open(fname, "wb") as f:
+			version = basics.PWDB_FILEFORMAT_VERSION
+			f.write(basics.Magic.headerStr)
 			f.write(struct.pack("!I", version))
 			f.write(wrappedKey)
 			f.write(self.outerIv)
-			serialized = cPickle.dumps(self.groups, cPickle.HIGHEST_PROTOCOL)
+			serialized = pickle.dumps(self.groups, pickle.HIGHEST_PROTOCOL)
 			encrypted = self.encryptOuter(serialized, self.outerIv)
 
 			hmacDigest = hmac.new(self.outerKey, encrypted, hashlib.sha256).digest()
@@ -177,8 +287,8 @@ class PasswordMap(object):
 			lb = struct.pack("!H", len(serializedBackup))
 			f.write(lb)
 			f.write(serializedBackup)
-			l = struct.pack("!I", len(encrypted))
-			f.write(l)
+			ll = struct.pack("!I", len(encrypted))
+			f.write(ll)
 			f.write(encrypted)
 			f.write(hmacDigest)
 
@@ -215,14 +325,18 @@ class PasswordMap(object):
 		"""
 		Decrypt wrapped outer key using Trezor.
 		"""
-		ret = self.trezor.decrypt_keyvalue(Magic.unlockNode, Magic.unlockKey, wrappedOuterKey, ask_on_encrypt=False, ask_on_decrypt=True)
+		ret = self.trezor.decrypt_keyvalue(basics.Magic.unlockNode,
+			basics.Magic.unlockKey, wrappedOuterKey,
+			ask_on_encrypt=False, ask_on_decrypt=True)
 		return ret
 
 	def wrapKey(self, keyToWrap):
 		"""
 		Encrypt/wrap a key. Its size must be multiple of 16.
 		"""
-		ret = self.trezor.encrypt_keyvalue(Magic.unlockNode, Magic.unlockKey, keyToWrap, ask_on_encrypt=False, ask_on_decrypt=True)
+		ret = self.trezor.encrypt_keyvalue(basics.Magic.unlockNode,
+			basics.Magic.unlockKey, keyToWrap,
+			ask_on_encrypt=False, ask_on_decrypt=True)
 		return ret
 
 	def encryptPassword(self, password, groupName):
@@ -230,23 +344,31 @@ class PasswordMap(object):
 		Encrypt a password. Does PKCS#5 padding before encryption.
 		Store IV as first block.
 
-		@param groupName key that will be shown to user on Trezor and
+		@param password: text to encrypt (combined password+comments)
+		@type password: string
+		@param groupName: key that will be shown to user on Trezor and
 			used to encrypt the password. A string in utf-8
+		@type groupName: string
+		@returns: bytes
 		"""
 		rnd = Random.new()
 		rndBlock = rnd.read(BLOCKSIZE)
-		ugroup = groupName.decode("utf-8")
+		ugroup = tobytes(groupName)
+		password = tobytes(password)
 		# minimum size of unpadded plaintext as input to trezor.encrypt_keyvalue() is 0    ==> padded that is 16 bytes
 		# maximum size of unpadded plaintext as input to trezor.encrypt_keyvalue() is 1023 ==> padded that is 1024 bytes
 		# plaintext input to trezor.encrypt_keyvalue() must be a multiple of 16
 		# trezor.encrypt_keyvalue() throws error on anythin larger than 1024
 		# In order to handle passwords+comments larger than 1023 we junk the passwords+comments
-		encrypted = ""
+		encrypted = b""
 		first = True
-		splits=[password[x:x+self.MAXUNPADDEDTREZORENCRYPTSIZE] for x in range(0,len(password),self.MAXUNPADDEDTREZORENCRYPTSIZE)]
+		splits = [password[x:x+self.MAX_UNPADDED_TREZOR_ENCRYPT_SIZE]
+			for x in range(0, len(password), self.MAX_UNPADDED_TREZOR_ENCRYPT_SIZE)]
 		for junk in splits:
 			padded = Padding(BLOCKSIZE).pad(junk)
-			encrypted += self.trezor.encrypt_keyvalue(Magic.groupNode, ugroup, padded, ask_on_encrypt=False, ask_on_decrypt=first, iv=rndBlock)
+			encrypted += self.trezor.encrypt_keyvalue(basics.Magic.groupNode,
+				ugroup, padded,
+				ask_on_encrypt=False, ask_on_decrypt=first, iv=rndBlock)
 			first = False
 		ret = rndBlock + encrypted
 		# print "Trezor encryption: plain-size =", len(password), ", encrypted-size =", len(encrypted)
@@ -258,15 +380,19 @@ class PasswordMap(object):
 
 		@param groupName key that will be shown to user on Trezor and
 			was used to encrypt the password. A string in utf-8.
+		@returns: string in unicode
 		"""
-		ugroup = groupName.decode("utf-8")
+		ugroup = tobytes(groupName)
 		iv, encryptedPassword = encryptedPassword[:BLOCKSIZE], encryptedPassword[BLOCKSIZE:]
 		# we junk the input, decrypt and reassemble the plaintext
-		password = ""
+		passwordBytes = b""
 		first = True
-		splits=[encryptedPassword[x:x+self.MAXPADDEDTREZORENCRYPTSIZE] for x in range(0,len(encryptedPassword),self.MAXPADDEDTREZORENCRYPTSIZE)]
+		splits = [encryptedPassword[x:x+self.MAX_PADDED_TREZOR_ENCRYPT_SIZE]
+			for x in range(0, len(encryptedPassword), self.MAX_PADDED_TREZOR_ENCRYPT_SIZE)]
 		for junk in splits:
-			plain = self.trezor.decrypt_keyvalue(Magic.groupNode, ugroup, junk, ask_on_encrypt=False, ask_on_decrypt=first, iv=iv)
+			plain = self.trezor.decrypt_keyvalue(basics.Magic.groupNode,
+				ugroup, junk,
+				ask_on_encrypt=False, ask_on_decrypt=first, iv=iv)
 			first = False
-			password += Padding(BLOCKSIZE).unpad(plain)
-		return password
+			passwordBytes += Padding(BLOCKSIZE).unpad(plain)
+		return normalize_nfc(passwordBytes)
