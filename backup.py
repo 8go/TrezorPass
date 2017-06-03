@@ -4,7 +4,7 @@ from __future__ import print_function
 
 try:
 	import cPickle as pickle
-except:
+except Exception:
 	import pickle
 
 from Crypto.PublicKey import RSA
@@ -62,7 +62,7 @@ class Backup(object):
 		ephemeral = rng.read(self.SYMMETRIC_KEYSIZE)
 		self.ephemeralIv = rng.read(self.BLOCKSIZE)
 		cipher = AES.new(ephemeral, AES.MODE_CBC, self.ephemeralIv)
-		padded = Padding(self.BLOCKSIZE).pad(privateKey)
+		padded = encoding.Padding(self.BLOCKSIZE).pad(privateKey)
 		self.encryptedPrivate = cipher.encrypt(padded)
 
 		self.encryptedEphemeral = self.trezor.encrypt_keyvalue(
@@ -84,7 +84,7 @@ class Backup(object):
 
 		cipher = AES.new(ephemeral, AES.MODE_CBC, self.ephemeralIv)
 		padded = cipher.decrypt(self.encryptedPrivate)
-		privateDer = Padding(self.BLOCKSIZE).unpad(padded)
+		privateDer = encoding.Padding(self.BLOCKSIZE).unpad(padded)
 
 		privateKey = RSA.importKey(privateDer)
 		return privateKey
@@ -135,8 +135,8 @@ class Backup(object):
 		# See https://security.stackexchange.com/questions/33434
 		encrypted = b''
 		passwordBytes = encoding.tobytes(password)
-		splits=[passwordBytes[x:x+self.SAFE_RSA_BLOCKSIZE_WITHOUTBUFFER]
-			for x in range(0,len(passwordBytes),self.SAFE_RSA_BLOCKSIZE_WITHOUTBUFFER)]
+		splits = [passwordBytes[x:x+self.SAFE_RSA_BLOCKSIZE_WITHOUTBUFFER]
+			for x in range(0, len(passwordBytes), self.SAFE_RSA_BLOCKSIZE_WITHOUTBUFFER)]
 		for junk in splits:
 			encrypted += cipher.encrypt(junk)
 		# print "RSA PKCS encryption: plain-size =", len(passwordBytes), ", encrypted-size =", len(encrypted)
@@ -151,8 +151,8 @@ class Backup(object):
 		"""
 		cipher = PKCS1_OAEP.new(privateKey)
 		passwordBytes = b''
-		splits=[encryptedPassword[x:x+self.RSA_BLOCKSIZE]
-			for x in range(0,len(encryptedPassword),self.RSA_BLOCKSIZE)]
+		splits = [encryptedPassword[x:x+self.RSA_BLOCKSIZE]
+			for x in range(0, len(encryptedPassword), self.RSA_BLOCKSIZE)]
 		for junk in splits:
 			passwordBytes += cipher.decrypt(junk)
 

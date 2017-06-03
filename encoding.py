@@ -39,7 +39,7 @@ def normalize_nfc(txt):
 	Py3: bytes, str (in unicode format)
 	Py2-vs-Py3:
 	"""
-	if sys.version_info[0] < 3:  # Py2-vs-Py3: 
+	if sys.version_info[0] < 3:  # Py2-vs-Py3:
 		if isinstance(txt, unicode):
 			return unicodedata.normalize('NFC', txt)
 		if isinstance(txt, str):
@@ -158,3 +158,12 @@ class PaddingHomegrown(object):
 		t = s[0:-(ord(s[-1])-ord('A')+1)]
 		BS = self.base64blocksize
 		return t + "=" * ((BS - len(t) % BS) % BS)
+
+
+def escape(str):
+	"""
+	Escape the letter \ as \\ in a string.
+	"""
+	if str is None:
+		return u''
+	return str.replace('\\', '\\\\')

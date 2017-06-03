@@ -81,7 +81,8 @@ class PasswordGroup(object):
 		try:
 			ss = u'[\n'
 			for ee in self.entries:
-				ss += '(\t' + normalize_nfc(ee[0]) + '\n\t' + binascii.hexlify(ee[1]) + '\n\t' + binascii.hexlify(ee[2]) + u'\n)'
+				ss += u'(\t%s\n\t%s\n\t%s\n)' % (normalize_nfc(ee[0]),
+					binascii.hexlify(ee[1]), binascii.hexlify(ee[2]))
 			return(ss+u'\n]')
 		except Exception:
 			ss = u'[\n'
@@ -89,7 +90,9 @@ class PasswordGroup(object):
 			for instvarkey in mydict:
 				instvarval = mydict[instvarkey]
 				for ee in instvarval:
-					ss += '(\t' + normalize_nfc(ee[0]) + '\n\t' + normalize_nfc(binascii.hexlify(ee[1])) + '\n\t' + normalize_nfc(binascii.hexlify(ee[2])) + u'\n)'
+					ss += u'(\t%s\n\t%s\n\t%s\n)' % (normalize_nfc(ee[0]),
+						normalize_nfc(binascii.hexlify(ee[1])),
+						normalize_nfc(binascii.hexlify(ee[2])))
 			return(ss+u'\n]')
 
 
@@ -101,7 +104,7 @@ class PasswordMap(object):
 
 	def __init__(self, trezor, settings):
 		assert trezor is not None
-		self.groups = {}  # dict with value being a list of triples
+		self.groups = {}  # dict with values being PasswordGroup instances
 		self.trezor = trezor
 		self.outerKey = None  # outer AES-CBC key
 		self.outerIv = None  # IV for data blob encrypted with outerKey
@@ -145,7 +148,8 @@ class PasswordMap(object):
 				"database file: %s" % (e), logging.CRITICAL, "Trezor IO")
 			sys.exit(5)
 		except Exception as e:
-			self.settings.mlogger.log("Could not decrypt passwords: %s" % (e),
+			self.settings.mlogger.log("Could not decrypt passwords: %s "
+				"Aborting." % (e),
 				logging.CRITICAL, "Trezor IO")
 			traceback.print_exc()  # prints to stder
 			sys.exit(5)
@@ -164,9 +168,10 @@ class PasswordMap(object):
 			if header != basics.Magic.headerStr:
 				raise IOError("Bad header in storage file")
 			version = f.read(4)
-			if len(version) != 4 or (struct.unpack("!I", version)[0] != 1 and struct.unpack("!I", version)[0] != 2):
+			upkv = struct.unpack("!I", version)[0]
+			if len(version) != 4 or (upkv != 1 and upkv != 2):
 				raise IOError("Unknown version of storage file")
-			self.version = struct.unpack("!I", version)[0]
+			self.version = upkv
 
 			wrappedKey = f.read(KEYSIZE)
 			if len(wrappedKey) != KEYSIZE:
@@ -186,8 +191,17 @@ class PasswordMap(object):
 			self.backupKey = Backup(self.trezor)
 			serializedBackup = f.read(lb)
 			if len(serializedBackup) != lb:
-				raise IOError("Corrupted disk format - not enough encrypted backup key bytes")
-			self.backupKey.deserialize(serializedBackup)
+				raise IOError("Corrupted disk format - "
+				"not enough encrypted backup key bytes")
+			try:
+				self.backupKey.deserialize(serializedBackup)
+			except ValueError as e:
+				raise ValueError("Critical error reading database [bk]: '%s'\n"
+					"If error is `unsupported pickle protocol: 4` then you "
+					"are trying to open with Python 2 a database file created "
+					"with Python 3. Use Python 3 instead of Python 2. If you "
+					"must use Python 2, then export the databse to CSV in "
+					"Python 3 and import the CSV in Python 2." % (e))
 
 			ls = f.read(4)
 			if len(ls) != 4:
@@ -215,17 +229,37 @@ class PasswordMap(object):
 
 			# Py2-vs-Py3: loads in Py2 does only have 1 arg, all 4 args are required for Py3
 			if sys.version_info[0] < 3:  # Py2-vs-Py3:
-				self.groups = pickle.loads(serialized)
-				# example record: print('example',self.groups.keys()[0], self.groups[self.groups.keys()[0]])
+				try:
+					self.groups = pickle.loads(serialized)
+				except ValueError as e:
+					raise ValueError("Critical error reading database [pw]: '%s'\n"
+						"If error is `unsupported pickle protocol: 4` then you "
+						"are trying to open with Python 2 a database file created "
+						"with Python 3. Use Python 3 instead of Python 2. If you "
+						"must use Python 2, then export the databse to CSV in "
+						"Python 3 and import the CSV in Python 2." % (e))
+				# # print example record for debugging
+				# self.settings.mlogger.log("Group 0 as example: \n{%s : %s, ...}\n%s" %
+				# 	(self.groups.keys()[0], self.groups[self.groups.keys()[0]],
+				# 	vars(self.groups[self.groups.keys()[0]])),
+				# 	logging.DEBUG, "Unpickled data")
 			else:
 				# loads is different in Py3
 				tmpGroups = pickle.loads(serialized, fix_imports=True, encoding='bytes', errors='strict')
 				# on the first time we open a pwdb file written in Py2 with Py3
 				# we need to migrate the data to adjust to str vs bytes problem
-				if len(tmpGroups) > 0 and isinstance(list(tmpGroups.keys())[0], bytes):
+				try:
+					len(tmpGroups) > 0 and tmpGroups[list(tmpGroups.keys())[0]].entries
+				except AttributeError:
 					tmpGroups = processing.migrateUnpickledDataFromPy2ToPy3(tmpGroups, self.settings)
 				self.groups = tmpGroups
-				# example record: print('example',list(self.groups.keys())[0], self.groups[list(self.groups.keys())[0]])
+				# # print example record for debugging
+				# self.settings.mlogger.log("Group 0 as example: \n{%s : %s, ...}\n%s" %
+				# 	(list(self.groups.keys())[0], self.groups[list(self.groups.keys())[0]],
+				# 	vars(self.groups[list(self.groups.keys())[0]])),
+				# 	logging.DEBUG, "Unpickled data")
+
+			self.groups = processing.migrateToUnicode(self.groups, self.settings)
 
 	def save(self, fname):
 		"""

@@ -125,7 +125,7 @@ def calculateDepth(member, currDepth):
 	return max
 
 
-def printCvs(ofile):
+def printCsv(ofile):
 	with open(ofile, 'r') as f:
 		csv.register_dialect('escaped', doublequote=False, escapechar='\\')
 		reader = csv.reader(f, dialect='escaped')
@@ -160,7 +160,7 @@ def writeEntriesToList(member, currDepth, currGroupName, max, entry_list, csvwri
 			mname = u'--' + mname
 		writeEntriesToList(submember, currDepth+1, currGroupName + mname, max, entry_list, csvwriter)
 	for submember in member.findall('Entry'):
-		dict = {}
+		mydict = {}
 		for strmember in submember.findall('String'):
 			#  ET.dump(submember)  # Debug
 			entry = []
@@ -170,17 +170,17 @@ def writeEntriesToList(member, currDepth, currGroupName, max, entry_list, csvwri
 			except Exception:
 				print('Info: No value given for key "%s" (group: %s), moving on ...' % (mkey, currGroupName))
 				mval = u''
-			dict[mkey] = mval
+			mydict[mkey] = mval
 
 		entry = []
 		sep = u''
 		if currGroupName != u'':
 			sep = u'--'
 
-		entry.append(escape(currGroupName + sep + dict['Title']))
+		entry.append(escape(currGroupName + sep + mydict['Title']))
 		entry.append(u'UserName')
-		if u'UserName' in dict:
-			entry.append(escape(dict['UserName']))
+		if u'UserName' in mydict:
+			entry.append(escape(mydict['UserName']))
 		else:
 			entry.append(u'')
 		entry.append(u'')
@@ -188,10 +188,10 @@ def writeEntriesToList(member, currDepth, currGroupName, max, entry_list, csvwri
 		entry_list.append(entry)
 
 		entry = []
-		entry.append(escape(currGroupName + sep + dict['Title']))
+		entry.append(escape(currGroupName + sep + mydict['Title']))
 		entry.append(u'Password')
-		if u'Password' in dict:
-			entry.append(escape(dict['Password']))
+		if u'Password' in mydict:
+			entry.append(escape(mydict['Password']))
 		else:
 			entry.append(u'')
 		entry.append(u'')
@@ -199,10 +199,10 @@ def writeEntriesToList(member, currDepth, currGroupName, max, entry_list, csvwri
 		entry_list.append(entry)
 
 		entry = []
-		entry.append(escape(currGroupName + sep + dict['Title']))
+		entry.append(escape(currGroupName + sep + mydict['Title']))
 		entry.append(u'URL')
-		if u'URL' in dict:
-			entry.append(escape(dict['URL']))
+		if u'URL' in mydict:
+			entry.append(escape(mydict['URL']))
 		else:
 			entry.append(u'')
 		entry.append(u'')
@@ -210,11 +210,11 @@ def writeEntriesToList(member, currDepth, currGroupName, max, entry_list, csvwri
 		entry_list.append(entry)
 
 		entry = []
-		entry.append(escape(currGroupName + sep + dict['Title']))
+		entry.append(escape(currGroupName + sep + mydict['Title']))
 		entry.append(u'Notes')
 		entry.append(u'')
-		if u'Notes' in dict:
-			entry.append(escape(dict['Notes']))
+		if u'Notes' in mydict:
+			entry.append(escape(mydict['Notes']))
 		else:
 			entry.append(u'')
 		entry_list.append(entry)
@@ -231,8 +231,8 @@ def writeEntriesToList(member, currDepth, currGroupName, max, entry_list, csvwri
 			for el in entry:
 				entryunicode.append(el.encode('utf-8'))
 			csvwriter.writerow(entryunicode)
-		dict.clear()
-		del dict
+		mydict.clear()
+		del mydict
 
 
 def main():
@@ -260,7 +260,7 @@ def main():
 
 	print('Produced output file "%s".' % ofile)
 	print('Entries are in 4 columns as follows: Groupname, Key, Value/Password, Comments')
-	# printCvs(ofile)  # Debug
+	# printCsv(ofile)  # Debug
 
 
 if __name__ == '__main__':

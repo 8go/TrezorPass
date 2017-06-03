@@ -100,11 +100,12 @@ class InitializeDialog(QDialog, Ui_InitializeDialog):
 
 class AddGroupDialog(QDialog, Ui_AddGroupDialog):
 
-	def __init__(self, groups):
+	def __init__(self, groups, settings):
 		super(AddGroupDialog, self).__init__()
 		self.setupUi(self)
 		self.newGroupEdit.textChanged.connect(self.validate)
 		self.groups = groups
+		self.settings = settings
 
 		# disabled for empty string
 		button = self.buttonBox.button(QDialogButtonBox.Ok)
@@ -135,7 +136,7 @@ class AddGroupDialog(QDialog, Ui_AddGroupDialog):
 
 class AddPasswordDialog(QDialog, Ui_AddPasswordDialog):
 
-	def __init__(self, trezor):
+	def __init__(self, trezor, settings):
 		super(AddPasswordDialog, self).__init__()
 		self.setupUi(self)
 		self.pwEdit1.textChanged.connect(self.validatePw)
@@ -143,6 +144,7 @@ class AddPasswordDialog(QDialog, Ui_AddPasswordDialog):
 		self.showHideButton.clicked.connect(self.switchPwVisible)
 		self.generatePasswordButton.clicked.connect(self.generatePassword)
 		self.trezor = trezor
+		self.settings = settings
 
 	def key(self):
 		return encoding.normalize_nfc(self.keyEdit.text())
@@ -230,7 +232,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.groupsTree.setModel(self.groupsFilter)
 		self.groupsTree.setContextMenuPolicy(Qt.CustomContextMenu)
 		self.groupsTree.customContextMenuRequested.connect(self.showGroupsContextMenu)
-		self.groupsTree.clicked.connect(self.loadPasswordsBySelection)
+		# Dont use e following line, it would cause loadPasswordsBySelection
+		# to be called twice on mouse-click.
+		# self.groupsTree.clicked.connect(self.loadPasswordsBySelection)
 		self.groupsTree.selectionModel().selectionChanged.connect(self.loadPasswordsBySelection)
 		self.groupsTree.setSortingEnabled(True)
 
@@ -251,18 +255,18 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.actionSave.triggered.connect(self.saveDatabase)
 		self.actionSave.setShortcut(QKeySequence(u"Ctrl+S"))
 
-		headerKey = QTableWidgetItem(u"Key")
-		headerValue = QTableWidgetItem(u"Password/Value")
-		headerComments = QTableWidgetItem(u"Comments")
-		self.passwordTable.setColumnCount(self.NO_OF_PASSWDTABLE_COLUMNS)
-		self.passwordTable.setHorizontalHeaderItem(self.KEY_IDX, headerKey)
-		self.passwordTable.setHorizontalHeaderItem(self.PASSWORD_IDX, headerValue)
-		self.passwordTable.setHorizontalHeaderItem(self.COMMENTS_IDX, headerComments)
-
-		self.passwordTable.resizeRowsToContents()
-		self.passwordTable.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-		self.passwordTable.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-		self.passwordTable.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+		# headerKey = QTableWidgetItem(u"Key")
+		# headerValue = QTableWidgetItem(u"Password/Value")
+		# headerComments = QTableWidgetItem(u"Comments")
+		# self.passwordTable.setColumnCount(self.NO_OF_PASSWDTABLE_COLUMNS)
+		# self.passwordTable.setHorizontalHeaderItem(self.KEY_IDX, headerKey)
+		# self.passwordTable.setHorizontalHeaderItem(self.PASSWORD_IDX, headerValue)
+		# self.passwordTable.setHorizontalHeaderItem(self.COMMENTS_IDX, headerComments)
+		#
+		# self.passwordTable.resizeRowsToContents()
+		# self.passwordTable.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+		# self.passwordTable.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+		# self.passwordTable.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
 
 		self.searchEdit.textChanged.connect(self.filterGroups)
 
@@ -282,6 +286,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 			item = QStandardItem(groupName)
 			self.groupsModel.appendRow(item)
 		self.groupsTree.sortByColumn(0, Qt.AscendingOrder)
+		self.settings.mlogger.log("pwMap was initialized.",
+			logging.DEBUG, "GUI IO")
 
 	def setModified(self, modified):
 		"""
@@ -376,7 +382,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		"""
 		Slot to create a password group.
 		"""
-		dialog = AddGroupDialog(self.pwMap.groups)
+		dialog = AddGroupDialog(self.pwMap.groups, self.settings)
 		if not dialog.exec_():
 			return
 
@@ -398,6 +404,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.loadPasswords(newItem)
 
 		self.setModified(True)
+		self.settings.mlogger.log("Group '%s' was created." % (groupName),
+			logging.DEBUG, "GUI IO")
 
 	def deleteGroup(self, item):
 		msgBox = QMessageBox(text="Are you sure about delete?", parent=self)
@@ -407,9 +415,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		if res != QMessageBox.Yes:
 			return
 
-		name = encoding.normalize_nfc(item.text())
+		groupName = encoding.normalize_nfc(item.text())
 		self.selectedGroup = None
-		del self.pwMap.groups[name]
+		del self.pwMap.groups[groupName]
 
 		itemIdx = self.groupsModel.indexFromItem(item)
 		self.groupsModel.takeRow(itemIdx.row())
@@ -417,6 +425,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.groupsTree.clearSelection()
 
 		self.setModified(True)
+		self.settings.mlogger.log("Group '%s' was deleted." % (groupName),
+			logging.DEBUG, "GUI IO")
 
 	def deletePassword(self, item):
 		msgBox = QMessageBox(text="Are you sure about delete?", parent=self)
@@ -436,6 +446,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.passwordTable.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
 		self.passwordTable.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
 		self.setModified(True)
+		self.settings.mlogger.log("Row '%d' was deleted." % (row),
+			logging.DEBUG, "GUI IO")
 
 	def logCache(self, row):
 		item = self.passwordTable.item(row, self.CACHE_IDX)
@@ -448,7 +460,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 			cachedPassword = u'***'
 		if cachedComments is not None:
 			cachedComments = cachedComments[0:3] + u'...'
-		self.settings.mlogger.log("Cache holds '%s' and '%s'" %
+		self.settings.mlogger.log("Cache holds '%s' and '%s'." %
 			(cachedPassword, cachedComments), logging.DEBUG, "Cache")
 
 	def cachePasswordComments(self, row, password, comments):
@@ -498,8 +510,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 			decryptedPwComments = self.pwMap.decryptPassword(encPwComments, self.selectedGroup)
 			lngth = int(decryptedPwComments[0:4])
 			decryptedPassword = decryptedPwComments[4:4+lngth]
-			decryptedComments = decryptedPwComments[4+lngth:]  # while we are at it, cache the comments too
+			decryptedComments = decryptedPwComments[4+lngth:]
+			# while we are at it, cache the comments too
 			self.cachePasswordComments(row, decryptedPassword, decryptedComments)
+			self.settings.mlogger.log("Decrypted password and comments "
+				"for '%s', row '%d'." % (pwEntry[0], row),
+				logging.DEBUG, "GUI IO")
 		return decryptedPassword
 
 	def cachedOrDecryptComments(self, row):
@@ -521,6 +537,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 			decryptedPassword = decryptedPwComments[4:4+lngth]
 			decryptedComments = decryptedPwComments[4+lngth:]
 			self.cachePasswordComments(row, decryptedPassword, decryptedComments)
+			self.settings.mlogger.log("Decrypted password and comments "
+				"for '%s', row '%d'." % (pwEntry[0], row),
+				logging.DEBUG, "GUI IO")
 		return decryptedComments
 
 	def showPassword(self, item):
@@ -553,7 +572,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		if self.selectedGroup is None:
 			return
 		group = self.pwMap.groups[self.selectedGroup]
-		dialog = AddPasswordDialog(self.pwMap.trezor)
+		dialog = AddPasswordDialog(self.pwMap.trezor, self.settings)
 		if not dialog.exec_():
 			return
 
@@ -566,27 +585,30 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 				logging.CRITICAL, "User IO")
 			return
 
-		rowCount = self.passwordTable.rowCount()
-		self.passwordTable.setRowCount(rowCount+1)
+		row = self.passwordTable.rowCount()
+		self.passwordTable.setRowCount(row+1)
 		item = QTableWidgetItem(dialog.key())
 		pwItem = QTableWidgetItem("*****")
 		commentsItem = QTableWidgetItem("*****")
-		self.passwordTable.setItem(rowCount, self.KEY_IDX, item)
-		self.passwordTable.setItem(rowCount, self.PASSWORD_IDX, pwItem)
-		self.passwordTable.setItem(rowCount, self.COMMENTS_IDX, commentsItem)
+		self.passwordTable.setItem(row, self.KEY_IDX, item)
+		self.passwordTable.setItem(row, self.PASSWORD_IDX, pwItem)
+		self.passwordTable.setItem(row, self.COMMENTS_IDX, commentsItem)
 
 		plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
 		encPw = self.pwMap.encryptPassword(plainPwComments, self.selectedGroup)
 		bkupPw = self.pwMap.backupKey.encryptPassword(plainPwComments)
 		group.addEntry(dialog.key(), encPw, bkupPw)
 
-		self.cachePasswordComments(rowCount, plainPw, plainComments)
+		self.cachePasswordComments(row, plainPw, plainComments)
 
 		self.passwordTable.resizeRowsToContents()
 		self.passwordTable.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
 		self.passwordTable.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
 		self.passwordTable.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
 		self.setModified(True)
+		self.settings.mlogger.log("Password and comments entry "
+			"for '%s', row '%d' was created." % (dialog.key(), row),
+			logging.DEBUG, "GUI IO")
 
 	def editPassword(self, item):
 		row = self.passwordTable.row(item)
@@ -597,7 +619,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		except CallException:
 			return
 
-		dialog = AddPasswordDialog(self.pwMap.trezor)
+		dialog = AddPasswordDialog(self.pwMap.trezor, self.settings)
 		entry = group.entry(row)
 		dialog.keyEdit.setText(encoding.normalize_nfc(entry[0]))
 		dialog.pwEdit1.setText(encoding.normalize_nfc(decrypted))
@@ -633,6 +655,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.cachePasswordComments(row, plainPw, plainComments)
 
 		self.setModified(True)
+		self.settings.mlogger.log("Password and comments entry "
+			"for '%s', row '%d' was edited." % (dialog.key(), row),
+			logging.DEBUG, "GUI IO")
 
 	def copyPasswordFromSelection(self):
 		"""
@@ -686,8 +711,6 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		"""
 		Slot that should load items for group that has been clicked on.
 		"""
-		self.settings.mlogger.log("Loading password group, clearing table, ...",
-			logging.DEBUG, "User IO")
 		self.passwordTable.clear()  # clears cahce, but also clears the header, the 3 titles
 		headerKey = QTableWidgetItem(u"Key")
 		headerValue = QTableWidgetItem(u"Password/Value")
@@ -697,9 +720,9 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.passwordTable.setHorizontalHeaderItem(self.PASSWORD_IDX, headerValue)
 		self.passwordTable.setHorizontalHeaderItem(self.COMMENTS_IDX, headerComments)
 
-		name = encoding.normalize_nfc(item.text())
-		self.selectedGroup = name
-		group = self.pwMap.groups[name]
+		groupName = encoding.normalize_nfc(item.text())
+		self.selectedGroup = groupName
+		group = self.pwMap.groups[groupName]
 		self.passwordTable.setRowCount(len(group.entries))
 
 		i = 0
@@ -716,6 +739,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.passwordTable.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
 		self.passwordTable.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
 		self.passwordTable.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+		self.settings.mlogger.log("Loaded password group '%s'." % (groupName),
+			logging.DEBUG, "GUI IO")
 
 	def loadPasswordsBySelection(self):
 		proxyIdx = self.groupsTree.currentIndex()
@@ -801,10 +826,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		copyfile(self.settings.dbFilename, self.settings.dbFilename + ".beforeCsvImport.backup")
 		self.settings.mlogger.log("WARNING: You are about to import entries from a "
 			"CSV file into your current password-database file. For safety "
-			"reasons please make a backup copy now.", logging.NOTSET,
+			"reasons please make a backup copy now.\nFurthermore, this"
+			"operation can be slow, so please be patient.", logging.NOTSET,
 			"CSV import")
-		dialog = QFileDialog(self, "Select import CSV file",
-			"", "CVS files (*.csv)")
+		dialog = QFileDialog(self, "Select CSV file to import",
+			"", "CSV files (*.csv)")
 		dialog.setAcceptMode(QFileDialog.AcceptOpen)
 
 		res = dialog.exec_()
@@ -816,12 +842,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 			csv.register_dialect("escaped", doublequote=False, escapechar='\\')
 			reader = csv.reader(f, dialect="escaped")
 			for csvEntry in reader:
-				self.settings.mlogger.log("CSV Entry: len=%d 0=%s" % (len(csvEntry), csvEntry[0]),
-					logging.DEBUG, "CSV import")
-				self.settings.mlogger.log("CSV Entry: 0=%s, 1=%s, 2=%s, 3=%s" %
-					(csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]), logging.DEBUG,
-					"CSV import")
-				groupName, key, plainPw, plainComments = csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]
+				# self.settings.mlogger.log("CSV Entry: len=%d 0=%s" % (len(csvEntry), csvEntry[0]),
+				# 	logging.DEBUG, "CSV import")
+				# self.settings.mlogger.log("CSV Entry: 0=%s, 1=%s, 2=%s, 3=%s" %
+				# 	(csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]), logging.DEBUG,
+				# 	"CSV import")
+				try:
+					groupName = encoding.normalize_nfc(csvEntry[0])
+					key = encoding.normalize_nfc(csvEntry[1])
+					plainPw = encoding.normalize_nfc(csvEntry[2])
+					plainComments = encoding.normalize_nfc(csvEntry[3])
+				except Exception as e:
+					raise IOError("Critical Error: Could not import CSV file. "
+						"CSV Entry: len=%d (should be 4) element[0]=%s. (%s)" %
+							(len(csvEntry), csvEntry[0], e))
+
 				groupNames = self.pwMap.groups.keys()
 				if groupName not in groupNames:  # groups are unique
 					self.pwMap.addGroup(groupName)
@@ -841,7 +876,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 			self.groupsTree.sortByColumn(0, Qt.AscendingOrder)
 			self.setModified(True)
 
-		self.settings.mlogger.log("Trezorpass has finished importing CSV file "
+		self.settings.mlogger.log("TrezorPass has finished importing CSV file "
 			"from \"%s\" into \"%s\"." % (fname, self.settings.dbFilename), logging.INFO,
 			"CSV import")
 
@@ -857,7 +892,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 			"operation on an offline or air-gapped computer. Be aware of the risks.",
 			logging.NOTSET,	"CSV export")
 		dialog = QFileDialog(self, "Select backup export file",
-			"", "CVS files (*.csv)")
+			"", "CSV files (*.csv)")
 		dialog.setAcceptMode(QFileDialog.AcceptSave)
 
 		res = dialog.exec_()
@@ -883,10 +918,28 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 					lngth = int(decryptedPwComments[0:4])
 					password = decryptedPwComments[4:4+lngth]
 					comments = decryptedPwComments[4+lngth:]
-					csvEntry = (groupName, key, password, comments)
+					# if we don't escape than the 2-letter string '"\' will
+					# lead to an exception on import
+					csvEntry = (encoding.escape(groupName),
+						encoding.escape(key),
+						encoding.escape(password),
+						encoding.escape(comments))
+					# all 4 elements in the 4-tuple are of type string
+					# Py2-vs-Py3: writerow() in Py2 implements on 7-bit unicode
+					# In py3 it implements full unicode.
+					# That means if there is a foreign character, writerow()
+					# in Py2 reports the exception:
+					# "UnicodeEncodeError: 'ascii' codec can't encode character u'\xxx' in position xx
+					# In Py2 we need to convert it back to bytes!
+					if sys.version_info[0] < 3:  # Py2-vs-Py3:
+						# the byte-conversion un-escapes, so we have to escape again!
+						csvEntry = (encoding.escape(encoding.tobytes(groupName)),
+							encoding.escape(encoding.tobytes(key)),
+							encoding.escape(encoding.tobytes(password)),
+							encoding.escape(encoding.tobytes(comments)))
 					writer.writerow(csvEntry)
 
-		self.settings.mlogger.log("Trezorpass has finished exporting CSV file "
+		self.settings.mlogger.log("TrezorPass has finished exporting CSV file "
 			"from \"%s\" to \"%s\"." % (self.settings.dbFilename, fname), logging.INFO,
 			"CSV export")
 
@@ -896,6 +949,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		"""
 		self.pwMap.save(self.dbFilename)
 		self.setModified(False)
+		self.settings.mlogger.log("TrezorPass password database file was "
+			"saved to '%s'." % (self.dbFilename), logging.DEBUG, "GUI IO")
 
 	def closeEvent(self, event):
 		if self.modified:
