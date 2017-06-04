@@ -77,7 +77,7 @@
     </layout>
    </item>
    <item>
-    <widget class="QLabel" name="label">
+    <widget class="QLabel" name="groupNameLabel">
      <property name="text">
       <string>Name of new group</string>
      </property>

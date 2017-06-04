@@ -9,6 +9,7 @@ import hashlib
 import logging
 import traceback
 import binascii
+import copy
 try:
 	import cPickle as pickle
 except Exception:
@@ -124,6 +125,61 @@ class PasswordMap(object):
 			raise KeyError("Password group already exists")
 
 		self.groups[groupName] = PasswordGroup()
+
+	def copyGroup(self, groupName):
+		"""
+		Creates a copy of a group by name as utf-8 encoded string
+		"""
+		if groupName not in self.groups:
+			raise KeyError("Password group does not exist")
+		return(copy.deepcopy(self.groups[groupName]))
+
+	def renameGroup(self, groupNameOld, groupNameNew):
+		"""
+		Creates a copy of a group by name as utf-8 encoded string
+		with a new group name.
+		A more appropriate name for the method would be:
+		createRenamedGroup().
+		Since the entries inside the group are encrypted
+		with the groupName, we cannot simply make a copy.
+		We must decrypt with old name and afterwards encrypt
+		with new name.
+		If the group has many entries, each entry would require a 'Confirm'
+		press on Trezor. So, to mkae it faster and more userfriendly
+		we use the backup key to decrypt. This requires a single
+		Trezor 'Confirm' press independent of how many entries there are
+		in the group.
+		@param groupNameOld: name of group to copy and rename
+		@type groupNameOld: string
+		@param groupNameNew: name of group to be created
+		@type groupNameNew: string
+		"""
+		if groupNameOld not in self.groups:
+			raise KeyError("Password group does not exist")
+		groupNew = PasswordGroup()
+		groupOld = self.groups[groupNameOld]
+
+		try:
+			privateKey = self.backupKey.unwrapPrivateKey()
+		except CallException:
+			return
+
+		for entry in groupOld.entries:
+			key, _, bkupPw = entry
+			decryptedPwComments = self.backupKey.decryptPassword(bkupPw, privateKey)
+			encPw = self.encryptPassword(decryptedPwComments, groupNameNew)
+			groupNew.addEntry(key, encPw, bkupPw)
+
+		return(groupNew)
+
+	def replaceGroup(self, groupName, group):
+		"""
+		Replace group by name as utf-8 encoded string
+		"""
+		if groupName not in self.groups:
+			raise KeyError("Password group does not exist")
+
+		self.groups[groupName] = group
 
 	def loadWithChecks(self, fname):
 		"""

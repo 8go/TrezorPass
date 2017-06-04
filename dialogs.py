@@ -114,6 +114,9 @@ class AddGroupDialog(QDialog, Ui_AddGroupDialog):
 	def newGroupName(self):
 		return encoding.normalize_nfc(self.newGroupEdit.text())
 
+	def setNewGroupName(self, text):
+		self.newGroupEdit.setText(encoding.normalize_nfc(text))
+
 	def validate(self):
 		"""
 		Validates input if name is not empty and is different from
@@ -305,8 +308,10 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		"""
 		self.addGroupMenu = QMenu(self)
 		newGroupAction = QAction('Add group', self)
+		editGroupAction = QAction('Edit group', self)
 		deleteGroupAction = QAction('Delete group', self)
 		self.addGroupMenu.addAction(newGroupAction)
+		self.addGroupMenu.addAction(editGroupAction)
 		self.addGroupMenu.addAction(deleteGroupAction)
 
 		# disable deleting if no point is clicked on
@@ -319,9 +324,11 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		action = self.addGroupMenu.exec_(self.groupsTree.mapToGlobal(point))
 
 		if action == newGroupAction:
-			self.createGroup()
+			self.createGroupWithCheck()
+		elif action == editGroupAction:
+			self.editGroupWithCheck(item)
 		elif action == deleteGroupAction:
-			self.deleteGroup(item)
+			self.deleteGroupWithCheck(item)
 
 	def showPasswdContextMenu(self, point):
 		"""
@@ -378,19 +385,15 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		elif action == showCommentsAction:
 			self.showComments(item)
 
-	def createGroup(self):
+	def createGroup(self, groupName, group=None):
 		"""
 		Slot to create a password group.
 		"""
-		dialog = AddGroupDialog(self.pwMap.groups, self.settings)
-		if not dialog.exec_():
-			return
-
-		groupName = dialog.newGroupName()
-
 		newItem = QStandardItem(groupName)
 		self.groupsModel.appendRow(newItem)
 		self.pwMap.addGroup(groupName)
+		if group is not None:
+			self.pwMap.replaceGroup(groupName, group)
 
 		# make new item selected to save a few clicks
 		itemIdx = self.groupsModel.indexFromItem(newItem)
@@ -407,14 +410,42 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.settings.mlogger.log("Group '%s' was created." % (groupName),
 			logging.DEBUG, "GUI IO")
 
-	def deleteGroup(self, item):
-		msgBox = QMessageBox(text="Are you sure about delete?", parent=self)
-		msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
-		res = msgBox.exec_()
+	def createGroupWithCheck(self):
+		"""
+		Slot to create a password group.
+		"""
+		dialog = AddGroupDialog(self.pwMap.groups, self.settings)
+		if not dialog.exec_():
+			return
+		groupName = dialog.newGroupName()
+		self.createGroup(groupName)
 
-		if res != QMessageBox.Yes:
+	def editGroup(self, item, groupNameOld, groupNameNew):
+		"""
+		Slot to edit name a password group.
+		"""
+		groupNew = self.pwMap.renameGroup(groupNameOld, groupNameNew)
+		self.deleteGroup(item)
+		self.createGroup(groupNameNew, groupNew)
+		self.settings.mlogger.log("Group '%s' was renamed to '%s'." % (groupNameOld, groupNameNew),
+			logging.DEBUG, "GUI IO")
+
+	def editGroupWithCheck(self, item):
+		"""
+		Slot to edit name a password group.
+		"""
+		groupNameOld = encoding.normalize_nfc(item.text())
+		dialog = AddGroupDialog(self.pwMap.groups, self.settings)
+		dialog.setWindowTitle("Edit group name")
+		dialog.groupNameLabel.setText("New name for group")
+		dialog.setNewGroupName(groupNameOld)
+		if not dialog.exec_():
 			return
 
+		groupNameNew = dialog.newGroupName()
+		self.editGroup(item, groupNameOld, groupNameNew)
+
+	def deleteGroup(self, item):  # without checking user
 		groupName = encoding.normalize_nfc(item.text())
 		self.selectedGroup = None
 		del self.pwMap.groups[groupName]
@@ -427,6 +458,16 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.setModified(True)
 		self.settings.mlogger.log("Group '%s' was deleted." % (groupName),
 			logging.DEBUG, "GUI IO")
+
+	def deleteGroupWithCheck(self, item):
+		msgBox = QMessageBox(text="Are you sure about delete?", parent=self)
+		msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+		res = msgBox.exec_()
+
+		if res != QMessageBox.Yes:
+			return
+
+		self.deleteGroup(item)
 
 	def deletePassword(self, item):
 		msgBox = QMessageBox(text="Are you sure about delete?", parent=self)

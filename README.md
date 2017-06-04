@@ -386,6 +386,6 @@ an empty database file in Python 2 and import the CSV file. Then you are ready t
 - [ ] Add a `Show All` right-click item in the password list to show all passwords and all comments with one click.
 - [ ] Add command line arguments to the CLI such as `--add group key password comment`,
         `--show group key`, `--showcomments group key` or `--delete group [key]` and using `xsel` even `--paste group key`.
-- [ ] Add `Rename group` to group menu
+- [x] Add `Rename group` to group menu
 
 </> on :octocat: with :heart:
