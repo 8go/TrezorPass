@@ -134,7 +134,38 @@ class PasswordMap(object):
 			raise KeyError("Password group does not exist")
 		return(copy.deepcopy(self.groups[groupName]))
 
-	def renameGroup(self, groupNameOld, groupNameNew):
+	def renameGroupSecure(self, groupNameOld, groupNameNew):
+		groupNew = PasswordGroup()
+		rowCount = len(self.groups[groupNameOld].entries)
+		for row in range(rowCount):
+			key, encPwComments, bkupPw = self.groups[groupNameOld].entries[row]
+			try:
+				decryptedPwComments = self.decryptPassword(encPwComments, groupNameOld)
+			except CallException as e:
+				self.settings.mlooger.log("%s" % (e),
+					logging.WARNING, "Trezor IO")
+				return
+			encPwNew = self.encryptPassword(decryptedPwComments, groupNameNew)
+			groupNew.addEntry(key, encPwNew, bkupPw)
+		return(groupNew)
+
+	def renameGroupFast(self, groupNameOld, groupNameNew):
+		groupNew = PasswordGroup()
+		groupOld = self.groups[groupNameOld]
+
+		try:
+			privateKey = self.backupKey.unwrapPrivateKey()
+		except CallException:
+			return
+
+		for entry in groupOld.entries:
+			key, _, bkupPw = entry
+			decryptedPwComments = self.backupKey.decryptPassword(bkupPw, privateKey)
+			encPwNew = self.encryptPassword(decryptedPwComments, groupNameNew)
+			groupNew.addEntry(key, encPwNew, bkupPw)
+		return(groupNew)
+
+	def renameGroup(self, groupNameOld, groupNameNew, moreSecure=True):
 		"""
 		Creates a copy of a group by name as utf-8 encoded string
 		with a new group name.
@@ -156,20 +187,10 @@ class PasswordMap(object):
 		"""
 		if groupNameOld not in self.groups:
 			raise KeyError("Password group does not exist")
-		groupNew = PasswordGroup()
-		groupOld = self.groups[groupNameOld]
-
-		try:
-			privateKey = self.backupKey.unwrapPrivateKey()
-		except CallException:
-			return
-
-		for entry in groupOld.entries:
-			key, _, bkupPw = entry
-			decryptedPwComments = self.backupKey.decryptPassword(bkupPw, privateKey)
-			encPw = self.encryptPassword(decryptedPwComments, groupNameNew)
-			groupNew.addEntry(key, encPw, bkupPw)
-
+		if moreSecure:
+			groupNew = self.renameGroupSecure(groupNameOld, groupNameNew)
+		else:
+			groupNew = self.renameGroupFast(groupNameOld, groupNameNew)
 		return(groupNew)
 
 	def replaceGroup(self, groupName, group):

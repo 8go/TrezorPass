@@ -308,7 +308,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		"""
 		self.addGroupMenu = QMenu(self)
 		newGroupAction = QAction('Add group', self)
-		editGroupAction = QAction('Edit group', self)
+		editGroupAction = QAction('Rename group', self)
 		deleteGroupAction = QAction('Delete group', self)
 		self.addGroupMenu.addAction(newGroupAction)
 		self.addGroupMenu.addAction(editGroupAction)
@@ -342,6 +342,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		copyPasswordAction.setShortcut(QKeySequence("Ctrl+C"))
 		showCommentsAction = QAction('Show comments', self)
 		copyCommentsAction = QAction('Copy comments', self)
+		showAllAction = QAction('Show all of group', self)
 		newItemAction = QAction('New item', self)
 		deleteItemAction = QAction('Delete item', self)
 		editItemAction = QAction('Edit item', self)
@@ -351,6 +352,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.passwdMenu.addAction(showCommentsAction)
 		self.passwdMenu.addAction(copyCommentsAction)
 		self.passwdMenu.addSeparator()
+		self.passwdMenu.addAction(showAllAction)
+		self.passwdMenu.addSeparator()
 		self.passwdMenu.addAction(newItemAction)
 		self.passwdMenu.addAction(deleteItemAction)
 		self.passwdMenu.addAction(editItemAction)
@@ -358,6 +361,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		# disable creating if no group is selected
 		if self.selectedGroup is None:
 			newItemAction.setEnabled(False)
+			showAllAction.setEnabled(False)
 
 		# disable deleting if no point is clicked on
 		item = self.passwordTable.itemAt(point.x(), point.y())
@@ -384,6 +388,8 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 			self.copyCommentsFromItem(item)
 		elif action == showCommentsAction:
 			self.showComments(item)
+		elif action == showAllAction:
+			self.showAll()
 
 	def createGroup(self, groupName, group=None):
 		"""
@@ -420,11 +426,60 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		groupName = dialog.newGroupName()
 		self.createGroup(groupName)
 
+	def renameGroupWithCheck(self, groupNameOld, groupNameNew):
+		"""
+		Creates a copy of a group by name as utf-8 encoded string
+		with a new group name.
+		A more appropriate name for the method would be:
+		createRenamedGroup().
+		Since the entries inside the group are encrypted
+		with the groupName, we cannot simply make a copy.
+		We must decrypt with old name and afterwards encrypt
+		with new name.
+		If the group has many entries, each entry would require a 'Confirm'
+		press on Trezor. So, to mkae it faster and more userfriendly
+		we use the backup key to decrypt. This requires a single
+		Trezor 'Confirm' press independent of how many entries there are
+		in the group.
+		@param groupNameOld: name of group to copy and rename
+		@type groupNameOld: string
+		@param groupNameNew: name of group to be created
+		@type groupNameNew: string
+		"""
+		if groupNameOld not in self.pwMap.groups:
+			raise KeyError("Password group does not exist")
+		# with less than 3 rows dont bother the user with a pop-up
+		rowCount = len(self.pwMap.groups[groupNameOld].entries)
+		if rowCount < 3:
+			self.pwMap.renameGroupSecure(groupNameOld, groupNameNew)
+			return
+
+		msgBox = QMessageBox(parent=self)
+		msgBox.setText("Do you want to use the more secure way?")
+		msgBox.setIcon(QMessageBox.Question)
+		msgBox.setWindowTitle("How to decrypt?")
+		msgBox.setDetailedText("The more secure way requires pressing 'Confirm' "
+			"on Trezor once for each entry in the group. %d presses in this "
+			"case. This is recommended. "
+			"Select 'Yes'.\n\n"
+			"The less secure way requires only a single 'Confirm' click on the "
+			"Trezor. This is not recommended. "
+			"Select 'No'." % (rowCount))
+		msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+		msgBox.setDefaultButton(QMessageBox.Yes)
+		res = msgBox.exec_()
+
+		if res == QMessageBox.Yes:
+			groupNew = self.pwMap.renameGroup(groupNameOld, groupNameNew, moreSecure=True)
+		else:
+			groupNew = self.pwMap.renameGroup(groupNameOld, groupNameNew, moreSecure=False)
+		return(groupNew)
+
 	def editGroup(self, item, groupNameOld, groupNameNew):
 		"""
 		Slot to edit name a password group.
 		"""
-		groupNew = self.pwMap.renameGroup(groupNameOld, groupNameNew)
+		groupNew = self.renameGroupWithCheck(groupNameOld, groupNameNew)
 		self.deleteGroup(item)
 		self.createGroup(groupNameNew, groupNew)
 		self.settings.mlogger.log("Group '%s' was renamed to '%s'." % (groupNameOld, groupNameNew),
@@ -596,7 +651,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		self.passwordTable.setItem(row, self.PASSWORD_IDX, item)
 
 	def showComments(self, item):
-		# check if this password has been decrypted, use cached version
+		# check if these comments has been decrypted, use cached version
 		row = self.passwordTable.row(item)
 		try:
 			decryptedComments = self.cachedOrDecryptComments(row)
@@ -605,6 +660,86 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		item = QTableWidgetItem(decryptedComments)
 
 		self.passwordTable.setItem(row, self.COMMENTS_IDX, item)
+
+	def showAllSecure(self):
+		rowCount = self.passwordTable.rowCount()
+		for row in range(rowCount):
+			try:
+				decryptedPassword = self.cachedOrDecryptPassword(row)
+			except CallException:
+				return
+			item = QTableWidgetItem(decryptedPassword)
+			self.passwordTable.setItem(row, self.PASSWORD_IDX, item)
+			try:
+				decryptedComments = self.cachedOrDecryptComments(row)
+			except CallException:
+				return
+			item = QTableWidgetItem(decryptedComments)
+			self.passwordTable.setItem(row, self.COMMENTS_IDX, item)
+
+		self.settings.mlogger.log("Showed all entries for group '%s' the secure way." %
+			(self.selectedGroup), logging.DEBUG, "GUI IO")
+
+	def showAllFast(self):
+		try:
+			privateKey = self.pwMap.backupKey.unwrapPrivateKey()
+		except CallException:
+			return
+		group = self.pwMap.groups[self.selectedGroup]
+
+		row = 0
+		for key, _, bkupPw in group.entries:
+			decryptedPwComments = self.pwMap.backupKey.decryptPassword(bkupPw, privateKey)
+			lngth = int(decryptedPwComments[0:4])
+			password = decryptedPwComments[4:4+lngth]
+			comments = decryptedPwComments[4+lngth:]
+			item = QTableWidgetItem(key)
+			pwItem = QTableWidgetItem(password)
+			commentsItem = QTableWidgetItem(comments)
+			self.passwordTable.setItem(row, self.KEY_IDX, item)
+			self.passwordTable.setItem(row, self.PASSWORD_IDX, pwItem)
+			self.passwordTable.setItem(row, self.COMMENTS_IDX, commentsItem)
+			self.cachePasswordComments(row, password, comments)
+			row = row+1
+
+		self.passwordTable.resizeRowsToContents()
+		self.passwordTable.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+		self.passwordTable.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+		self.passwordTable.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+
+		self.settings.mlogger.log("Showed all entries for group '%s' the fast way." %
+			(self.selectedGroup), logging.DEBUG, "GUI IO")
+
+	def showAll(self):
+		"""
+		show all passwords and comments in plaintext in GUI
+		can be called without any password selectedGroup
+		a group must be selected
+		"""
+		# with less than 3 rows dont bother the user with a pop-up
+		if self.passwordTable.rowCount() < 3:
+			self.showAllSecure()
+			return
+
+		msgBox = QMessageBox(parent=self)
+		msgBox.setText("Do you want to use the more secure way?")
+		msgBox.setIcon(QMessageBox.Question)
+		msgBox.setWindowTitle("How to decrypt?")
+		msgBox.setDetailedText("The more secure way requires pressing 'Confirm' "
+			"on Trezor once for each entry in the group. %d presses in this "
+			"case. This is recommended. "
+			"Select 'Yes'.\n\n"
+			"The less secure way requires only a single 'Confirm' click on the "
+			"Trezor. This is not recommended. "
+			"Select 'No'." % (self.passwordTable.rowCount()))
+		msgBox.setStandardButtons(QMessageBox.Yes | QMessageBox.No)
+		msgBox.setDefaultButton(QMessageBox.Yes)
+		res = msgBox.exec_()
+
+		if res == QMessageBox.Yes:
+			self.showAllSecure()
+		else:
+			self.showAllFast()
 
 	def createPassword(self):
 		"""
