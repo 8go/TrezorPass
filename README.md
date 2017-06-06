@@ -16,12 +16,13 @@ Below  a sample screenshot. More screenshots [here](screenshots).
 
 ![Screenshot](screenshots/trezorpass-screenshot-mainwindow-mainmenu-v3.png)
 
-# Security features
+# Features
 
   * **secure**: even in the worst case with a virus on your computer, that has access to your
     keyboard, your applications and your memory, only the passwords
     you are copying-and-pasting can be stolen. All unused passwords
     remain safely secured by Trezor
+  * **private**: you control everything, no third parties are involved
   * works offline, no cloud service required
   * portable, stores all information in a single file
   * symmetric password encryption key never leaves the Trezor
@@ -38,6 +39,10 @@ Below  a sample screenshot. More screenshots [here](screenshots).
   * if Trezor is lost, recovery from seed on a new Trezor and using the same
     password will also recover encrypted password database (in theory recovery
     can be done without Trezor, but such script is not yet written)
+  * a full command line interface (CLI) exists, covering all features.
+    Everything doable in the GUI can also be done through the CLI without a GUI.
+    The CLI allows adding, updating, deleting, listing records, importing and
+    exporting CSV files, as well as copying a requested password onto the clipboard.
 
 # Runtime requirements
 
@@ -81,28 +86,166 @@ or
 
     python3 TrezorPass.py
 
-On rare occasions one of the command line arguments might become useful:
+On rare occasions one of the command line arguments might become useful, or
+for those who prefer the CLI and the terminal:
 
 ```
-TrezorPass.py [-v] [-h] [-l <level>] [-p <passphrase>] [[-d] -f <pwdbfile>]
-    -v, --version
-            print the version number
-    -h, --help
-            print short help text
-    -l, --logging
-            set logging level, integer from 1 to 5, 1=full logging, 5=no logging
-    -p, --passphrase
-            master passphrase used for Trezor.
-            It is recommended that you do not use this command line option
-            but rather give the passphrase through a small window interaction.
-    -f, --pwdbfile
-            name of an existing password file to use instead of the default one;
-            must be a valid TrezorPass password file
-    -d, --setdefault
-            set the file provided with `-f` as default, i.e. this will
-            be the password file opened from now on
+TrezorPass.py [-v] [-h] [-l <level>] [-p <passphrase>]
+    [[-q] -f <pwdbfile>] [-t] [-n]
+    [	[-a -g <group> [-k <key> [[-w <password>] [-m <comments>]]]] |
+        [-c -g <group> -k <key>] | [-s -g <group> [-k <key>]] |
+        [-o -g <group> [-k <key>]] | [-b -g <group> [-k <key>]] |
+        [-e [-g <group>]] | [-x] | [-d -g <group> [-k <key>]] ] |
+        [-r -g <oldgroupname> -0 <newgroupname>] |
+        [-u -g <group> -k <key> [-1 <newkey>] [-2 <newpassword>] [-3 <newcomments>]] |
+        [-y <csvfile>] | [-z <csvfile>]	]
 
-    All arguments are optional. Usually none needs to be used.
+-v, --version
+        print the version number
+-h, --help
+        print short help text
+-l, --logging
+        set logging level, integer from 1 to 5, 1=full logging, 5=no logging
+-p, --passphrase
+        provide master passphrase used for Trezor.
+        It is recommended that you do not use this command line option
+        but rather give the passphrase through a small window interaction.
+-f, --pwdbfile
+        name of an existing password file to use instead of the default one;
+        must be a valid TrezorPass password file
+-q, --setdefault
+        set the file provided with `-f` as default, i.e. this will
+        be the password file opened from now on
+-t, --terminal
+        run in terminal mode. This mode avoids the GUI.
+        `-a`, `-c`, `s`, `-o`, `-b`, `-e`, `-x`, `-d`, `-r`, `-u`,
+        `-y`, and `-z` will automatically set `-t` and go into terminal mode.
+-n, --noconfirm
+        Eliminates the `Confirm` click on the Trezor button.
+        This was only added to facilitate batch testing.
+        It should be used EXCLUSIVELY for testing purposes.
+        Do NOT use this option with real passwords!
+        Furthermore, files encryped with `-n` cannot be decrypted
+        without `-n`.
+
+Operations:
+-a, -add
+        add a group and/or a key with or without a password and comments
+        Appends new key if key already exists.
+-c, --clip
+        copy password of a given group and key to clipboard
+        so it can be pasted thereafter
+-s, --show
+        print password of a given group and key.
+        If no key is given it will print all passwords of the group.
+-o, --showcomments
+        print comments of a given group and key.
+        If no key is given it will print all comments of the group.
+-b, --showboth
+        print passwords and comments of a given group.
+        If no key is given it will print all passwords and comments of the group.
+-e, --showkeys
+        print keys of a given group.
+        If no group is given it will print all keys of the database.
+        This prints the hierarchy of the database.
+-x, --showgroups
+        print all group names
+-d, --delete
+        delete entries of a given group and key.
+        If no key is given it will delete the whole group.
+-r, --renamegroup
+        rename a group
+-u, --updateentry
+        update a key-password-comments entry with new values
+-y, --exportcvs
+        export the password database to a CVS file
+        The CSV file will be overwriten if it exists already.
+-z, --importcvs
+        import a CVS file into the password database
+
+Additional arguments for operations:
+-g, --group
+        to specify the group name
+-k, --key
+        to specify the key name
+-w, --password
+        to specify the password
+-m, --comments
+        to specify the comments
+-0, --newgroupname
+        to specify new group name
+-1, --newkeyname
+        to specify new key name
+-2, --newpassword
+        to specify new password
+-3, --newcomments
+        to specify new comments
+
+All arguments are optional. Usually none needs to be used.
+
+TrezorPass is based on the following design principles, concepts
+and terminology: The world of passwords and secrets is structured
+in this hierarchy:
+* groups (unlimited)
+    + entries (unlimited entries per group)
+        - key		(one per entry)
+        - password	(one per entry)
+        - comments	(one per entry)
+A `Group` just has a name. The `key` is like an id of the entry.
+The `password` is the secret information, and the `comments` are
+additional secret comments.
+Example groups could be: "Google", "Github", "Bank Abc", "Gym locker",
+    "Bike lock", "GPG key"
+The "Google" group could have these example entries: (key, password, comments)
+    "account name", "john.doe", ""
+    "password", "johnssecretpassword", "last changed in Jan 2017"
+    "email address", "john.doe@gmail.com", "johndoe@gmail.com also works"
+    "recovery email", "janedoe@gmail.com", "set up in 2016"
+The "Bank Abc" group could have these example entries:
+    "user name", "johndoe123", ""
+    "password", "ilikepizza", ""
+    "PIN", "1234", "used for wires"
+    "contact", "Susi", "works in customer care"
+    "phone", "123-456-7890", "hot-line, 24x7"
+    "URL", "https://bankabc.com/login.php"
+The "Gym locker" group could have these example entries:
+    "locker number", "12", "its the third in the second row"
+    "code", "4321", ""
+
+Examples:
+# normal operation
+TrezorPass.py
+
+# normal operation with verbose logging at Debug level
+TrezorPass.py -l 1
+
+# open some old backup password database (once)
+TrezorPass.py -f trezorpass.backup.170101.pwdb
+
+# from now on always by default open password database from environment 2
+TrezorPass.py -q -f trezorpass.env2.pwdb
+
+# copy password of Google account to clipboard without using GUI
+TrezorPass.py -c -g Google -k password
+
+# add entry to database without using GUI
+# add secret number 1234 of bike lock
+TrezorPass.py -a -g "Bike lock" -k Number -w 1234 -m "old red number combination lock"
+
+# update secret number of bike lock to 9876
+TrezorPass.py -a -u "Bike lock" -k Number -2 1234
+
+# delete secret number entry of bike lock
+TrezorPass.py -a -d "Bike lock" -k Number
+
+# delete everything about the bike lock group
+TrezorPass.py -a -d "Bike lock"
+
+# show the gym locker code without GUI
+TrezorPass.py -s -g "Gym locker" -k code
+
+# show all group names and key names without GUI
+TrezorPass.py --showkeys
 ```
 
 # How export to CSV works
@@ -384,8 +527,12 @@ an empty database file in Python 2 and import the CSV file. Then you are ready t
 - [ ] Spread the information about the availability of this tool on social
         networks like Reddit, Twitter or Facebook. Any help appreciated.
 - [x] Add a `Show All` right-click item in the password list to show all passwords and all comments with one click.
-- [ ] Add command line arguments to the CLI such as `--add group key password comment`,
-        `--show group key`, `--showcomments group key` or `--delete group [key]` and using `xsel` even `--paste group key`.
+- [x] Add command line arguments to the CLI such as `--add group key password comment`,
+        `--show group [key]`, `--showcomments group key` or `--delete group [key]` and using `xsel` even `--clip group key`
+        and `--copycomments group key`.
+- [ ] CLI could be improved with `--editGroup` and `editPassword`
+- [ ] Once available of Qt5 the [pyperclip](https://github.com/asweigart/pyperclip) package could be used
+- [x] Add command line argument `--clip group key`
 - [x] Add `Rename group` to group menu
 
 </> on :octocat: with :heart:

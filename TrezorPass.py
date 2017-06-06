@@ -8,6 +8,7 @@ import sys
 import logging
 import os.path
 from shutil import copyfile
+import traceback
 
 from PyQt5.QtWidgets import QApplication  # for the clipboard and window
 
@@ -58,13 +59,47 @@ def useTerminal(pwMap, settings):
 		-t --mv groupNameOld groupNameNew
 		-t --add groupName [key password comments]
 	"""
-	settings.mlogger.log(u"Entering Terminal mode. GUI wil not be called.",
+	settings.mlogger.log(u"Entering Terminal mode. GUI will not be called.",
 		logging.DEBUG, u"Arguments")
+	try:
+		if settings.BArg:
+			pwMap.showBoth(settings.GArg, settings.KArg)
+		if settings.CArg:
+			pwMap.clipPassword(settings.GArg, settings.KArg)
+		if settings.SArg:
+			pwMap.showPassword(settings.GArg, settings.KArg)
+		if settings.OArg:
+			pwMap.showComments(settings.GArg, settings.KArg)
+		if settings.DArg:
+			pwMap.deletePasswordEntry(settings.GArg, settings.KArg, askUser=True)
+			pwMap.save(settings.dbFilename)
+		if settings.EArg:
+			pwMap.showKeys(settings.GArg)
+		if settings.XArg:
+			pwMap.showGroupNames()
+		if settings.AArg:
+			pwMap.addEntry(settings.GArg, settings.KArg, settings.WArg, settings.MArg)
+			pwMap.save(settings.dbFilename)
+		if settings.RArg:
+			pwMap.renameGroup(settings.GArg, settings.n0Arg, moreSecure=True)
+			pwMap.save(settings.dbFilename)
+		if settings.UArg:
+			pwMap.updateEntryInGroup(settings.GArg, settings.KArg,
+				settings.n1Arg, settings.n2Arg, settings.n3Arg, askUser=True)
+			pwMap.save(settings.dbFilename)
+		if settings.YArg:
+			pwMap.exportCsv(settings.YArg)
+		if settings.ZArg:
+			pwMap.importCsv(settings.ZArg)
+			pwMap.save(settings.dbFilename)
+	except Exception as e:
+		settings.mlogger.log("Error/Warning/Info: %s" % (e),
+			logging.CRITICAL, u"Arguments")
+		if settings.logger.getEffectiveLevel() <= logging.DEBUG:
+			traceback.print_exc()  # prints to stderr
 
 
 def main():
-	# Terminal-mode is not yet implemented, set it to True once it is
-	terminalModeImplemented = False
 	app = QApplication(sys.argv)
 	sets = settings.Settings()  # initialize settings
 	# parse command line
@@ -79,7 +114,7 @@ def main():
 
 	pwMap = password_map.PasswordMap(trezor, sets)
 
-	if sets.TArg and terminalModeImplemented:
+	if sets.TArg:
 		sets.mlogger.log(u"Terminal mode --terminal was set. Avoiding GUI.",
 			logging.INFO, u"Arguments")
 	else:
@@ -109,7 +144,7 @@ def main():
 	else:
 		processing.initializeStorage(trezor, pwMap, sets)
 
-	if sets.TArg and terminalModeImplemented:
+	if sets.TArg:
 		useTerminal(pwMap, sets)
 	else:
 		# user wants GUI, so we call the GUI

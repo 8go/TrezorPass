@@ -27,18 +27,23 @@ class Backup(object):
 	RSA_BLOCKSIZE = RSA_KEYSIZE // 8  # in bytes
 	SAFE_RSA_BLOCKSIZE_WITHOUTBUFFER = RSA_BLOCKSIZE - 2 - 2 * 32  # 446 # 4096 // 8 - 2 - 2*32
 
-	def __init__(self, trezor):
+	def __init__(self, trezor, noconfirm=False):
 		"""
 		Create with no keys prepared.
 
 		@param trezor: Trezor client object to use for encrypting private
 			key
+		@param noconfirm: should Confirm press on Trezor be required?
+			Should only be true for batch testing, never use it as True for
+			real passwords.
+		@type noconfirm: bool
 		"""
 		self.encryptedPrivate = None  # encrypted private key
 		self.encryptedEphemeral = None  # ephemeral key used to encrypt private RSA key
 		self.ephemeralIv = None  # IV used to encrypt private key with ephemeral key
 		self.publicKey = None
 		self.trezor = trezor
+		self.confirm = not noconfirm
 
 	def generate(self):
 		"""
@@ -67,7 +72,7 @@ class Backup(object):
 
 		self.encryptedEphemeral = self.trezor.encrypt_keyvalue(
 			Magic.backupNode, Magic.backupKey, ephemeral,
-			ask_on_encrypt=False, ask_on_decrypt=True)
+			ask_on_encrypt=False, ask_on_decrypt=self.confirm)
 
 	def unwrapPrivateKey(self):
 		"""
@@ -80,7 +85,7 @@ class Backup(object):
 		"""
 		ephemeral = self.trezor.decrypt_keyvalue(Magic.backupNode,
 			Magic.backupKey, self.encryptedEphemeral,
-			ask_on_encrypt=False, ask_on_decrypt=True)
+			ask_on_encrypt=False, ask_on_decrypt=self.confirm)
 
 		cipher = AES.new(ephemeral, AES.MODE_CBC, self.ephemeralIv)
 		padded = cipher.decrypt(self.encryptedPrivate)

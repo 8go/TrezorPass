@@ -4,11 +4,14 @@ from __future__ import print_function
 
 import sys
 import logging
+import getpass
 
 from dialogs import InitializeDialog
 import backup
 from encoding import normalize_nfc
 from password_map import PasswordGroup
+import basics
+import utils
 
 """
 This file holds the main business logic.
@@ -30,22 +33,78 @@ def initializeStorage(trezor, pwMap, settings):
 	@param pwMap: PasswordMap where to put encrypted backupKeys
 	@param settings: Settings object to store password database location
 	"""
-	dialog = InitializeDialog()
-	if settings.passphrase() is not None:
-		dialog.setPw1(settings.passphrase())
-		dialog.setPw2(settings.passphrase())
+	if settings.TArg:
+		# Terminal mode
+		print('Welcome to %s' % basics.NAME)
+		print('You have to go through a one-time only initialization step. \n'
+			'You will be asked 2 questions: a) the name of a file \n'
+			'where to store the password database and b) a passphrase. \n'
+			'The passphrase will be used with the Trezor to securely \n'
+			'encrypt your passwords. If you lose the passphrase you will \n'
+			'lose access to your password database. \n'
+			'Do not lose it!')
+		print('Give a filename where to store the password database? ')
+		print('Warning: If file exists it will be overwritten. ')
+		print('Note: There is no shell expansion, so do not use anything like ~, $HOME, $VAR, etc. ')
+		print('')
+		while True:
+			pwFileName = utils.input23(u"Filename where to store the password database? ")
+			try:
+				open(pwFileName, 'wb+').close()
+			except OSError as e:
+				print('%s is not a valid filename, it cannot be opened for writing. '
+					'Try again. (%s)' % (pwFileName, e))
+			else:
+				break
+		print('For safety you will now be asked twice for the passphrase. ')
+		while True:
+			# read passphrase from stdin
+			try:
+				masterPassphrase1 = getpass.getpass(u"Please enter passphrase: ")
+				masterPassphrase1 = normalize_nfc(masterPassphrase1)
+			except KeyboardInterrupt:
+				sys.stderr.write(u"\nKeyboard interrupt: passphrase not read. Aborting.\n")
+				sys.exit(3)
+			except Exception as e:
+				sys.stderr.write(u"Critical error: Passphrase not read. Aborting. (%s)" % e)
+				sys.exit(3)
+			# read passphrase from stdin
+			try:
+				masterPassphrase2 = getpass.getpass(u"Please repeat passphrase: ")
+				masterPassphrase2 = normalize_nfc(masterPassphrase2)
+			except KeyboardInterrupt:
+				sys.stderr.write(u"\nKeyboard interrupt: passphrase not read. Aborting.\n")
+				sys.exit(3)
+			except Exception as e:
+				sys.stderr.write(u"Critical error: Passphrase not read. Aborting. (%s)" % e)
+				sys.exit(3)
+			if masterPassphrase1 == masterPassphrase2:
+				break
+			else:
+				print('The two passphrases provided do not match. Try again.')
+		masterPassphrase = masterPassphrase1
+	else:
+		# GUI mode
+		dialog = InitializeDialog()
+		if settings.passphrase() is not None:
+			dialog.setPw1(settings.passphrase())
+			dialog.setPw2(settings.passphrase())
 
-	if not dialog.exec_():
-		sys.exit(4)
+		if not dialog.exec_():
+			sys.exit(4)
 
-	masterPassphrase = dialog.pw1()
+		masterPassphrase = dialog.pw1()
+		pwFileName = dialog.pwFile()
 	trezor.prefillPassphrase(masterPassphrase)
-	backupkey = backup.Backup(trezor)
+	backupkey = backup.Backup(trezor, noconfirm=settings.NArg)
 	backupkey.generate()
 	pwMap.backupKey = backupkey
-	settings.dbFilename = dialog.pwFile()
-	settings.FArg = dialog.pwFile()
+	settings.dbFilename = pwFileName
+	settings.FArg = pwFileName
 	settings.store()
+	# write the file with no user data to the disk
+	# to make the master passphrase permanent
+	pwMap.save(pwFileName)
 
 
 def updatePwMapFromV1ToV2(pwMap, settings):

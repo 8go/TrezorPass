@@ -10,6 +10,9 @@ import logging
 import traceback
 import binascii
 import copy
+import csv
+import os
+import os.path
 try:
 	import cPickle as pickle
 except Exception:
@@ -18,12 +21,25 @@ except Exception:
 from Crypto.Cipher import AES
 from Crypto import Random
 
+"""
+As clipboard pyperclip would be ideal.
+https://pypi.python.org/pypi/pyperclip/
+https://github.com/asweigart/pyperclip
+The Qt5 port from https://github.com/ilpianista/pyperclip
+has not yet be pulled in.
+See: https://github.com/asweigart/pyperclip/network
+Once available on Qt5, it can be used instead of the std. QApplication.clipboard
+"""
+# import pyperclip
+from PyQt5.QtWidgets import QApplication  # for the clipboard
+
 from trezorlib.client import CallException, PinException
 
 import basics
-from encoding import normalize_nfc, tobytes, Padding
+from encoding import normalize_nfc, tobytes, escape, Padding
 from backup import Backup
 import processing
+import utils
 
 """
 On-disk format
@@ -56,7 +72,12 @@ class PasswordGroup(object):
 		self.entries = []  # list of tuples
 
 	def addEntry(self, key, encryptedValue, backupValue):
-		"""Add key-value-backup entry"""
+		"""
+		Add key-value-backup entry
+		Appends.
+		Duplicates are allowed.
+		Empty strings are allowed as key.
+		"""
 		self.entries.append((key, encryptedValue, backupValue))
 
 	def removeEntry(self, idx):
@@ -117,14 +138,22 @@ class PasswordMap(object):
 		self.outerIv = rng.read(BLOCKSIZE)
 		self.outerKey = rng.read(KEYSIZE)
 
-	def addGroup(self, groupName):
+	def addGroup(self, groupName, group=None):
 		"""
 		Add group by name as utf-8 encoded string
 		"""
 		if groupName in self.groups:
 			raise KeyError("Password group already exists")
 
-		self.groups[groupName] = PasswordGroup()
+		if group is None:
+			self.groups[groupName] = PasswordGroup()
+		else:
+			self.groups[groupName] = group
+
+	def deleteGroup(self, groupName):
+		if groupName not in self.groups:
+			raise KeyError("Password group does not exist")
+		del self.groups[groupName]  # delete the group from dictionary
 
 	def copyGroup(self, groupName):
 		"""
@@ -134,7 +163,7 @@ class PasswordMap(object):
 			raise KeyError("Password group does not exist")
 		return(copy.deepcopy(self.groups[groupName]))
 
-	def renameGroupSecure(self, groupNameOld, groupNameNew):
+	def createRenamedGroupSecure(self, groupNameOld, groupNameNew):
 		groupNew = PasswordGroup()
 		rowCount = len(self.groups[groupNameOld].entries)
 		for row in range(rowCount):
@@ -149,7 +178,7 @@ class PasswordMap(object):
 			groupNew.addEntry(key, encPwNew, bkupPw)
 		return(groupNew)
 
-	def renameGroupFast(self, groupNameOld, groupNameNew):
+	def createRenamedGroupFast(self, groupNameOld, groupNameNew):
 		groupNew = PasswordGroup()
 		groupOld = self.groups[groupNameOld]
 
@@ -165,18 +194,22 @@ class PasswordMap(object):
 			groupNew.addEntry(key, encPwNew, bkupPw)
 		return(groupNew)
 
-	def renameGroup(self, groupNameOld, groupNameNew, moreSecure=True):
+	def createRenamedGroup(self, groupNameOld, groupNameNew, moreSecure=True):
 		"""
-		Creates a copy of a group by name as utf-8 encoded string
+		Creates a copy of a group (given by name as utf-8 encoded string)
 		with a new group name.
-		A more appropriate name for the method would be:
-		createRenamedGroup().
+		This method does not rename any existing group, it just creates an
+		additional one with a new name.
 		Since the entries inside the group are encrypted
 		with the groupName, we cannot simply make a copy.
 		We must decrypt with old name and afterwards encrypt
 		with new name.
+		We provide 2 options:
+		- more secure, less convenient: entry-by-entry decryption
+		- less secure, more convenient: backup-decryption
 		If the group has many entries, each entry would require a 'Confirm'
-		press on Trezor. So, to mkae it faster and more userfriendly
+		press on Trezor. So, in the fast-variant,
+		to make it faster, more convenient, more user-friendly
 		we use the backup key to decrypt. This requires a single
 		Trezor 'Confirm' press independent of how many entries there are
 		in the group.
@@ -188,9 +221,9 @@ class PasswordMap(object):
 		if groupNameOld not in self.groups:
 			raise KeyError("Password group does not exist")
 		if moreSecure:
-			groupNew = self.renameGroupSecure(groupNameOld, groupNameNew)
+			groupNew = self.createRenamedGroupSecure(groupNameOld, groupNameNew)
 		else:
-			groupNew = self.renameGroupFast(groupNameOld, groupNameNew)
+			groupNew = self.createRenamedGroupFast(groupNameOld, groupNameNew)
 		return(groupNew)
 
 	def replaceGroup(self, groupName, group):
@@ -228,7 +261,7 @@ class PasswordMap(object):
 			self.settings.mlogger.log("Could not decrypt passwords: %s "
 				"Aborting." % (e),
 				logging.CRITICAL, "Trezor IO")
-			traceback.print_exc()  # prints to stder
+			traceback.print_exc()  # prints to stderr
 			sys.exit(5)
 
 	def load(self, fname):
@@ -265,7 +298,7 @@ class PasswordMap(object):
 				raise IOError("Corrupted disk format - bad backup key length")
 			lb = struct.unpack("!H", lb)[0]
 
-			self.backupKey = Backup(self.trezor)
+			self.backupKey = Backup(self.trezor, noconfirm=self.settings.NArg)
 			serializedBackup = f.read(lb)
 			if len(serializedBackup) != lb:
 				raise IOError("Corrupted disk format - "
@@ -404,7 +437,7 @@ class PasswordMap(object):
 		"""
 		ret = self.trezor.decrypt_keyvalue(basics.Magic.unlockNode,
 			basics.Magic.unlockKey, wrappedOuterKey,
-			ask_on_encrypt=False, ask_on_decrypt=True)
+			ask_on_encrypt=False, ask_on_decrypt=self.settings.NArg)
 		return ret
 
 	def wrapKey(self, keyToWrap):
@@ -413,7 +446,7 @@ class PasswordMap(object):
 		"""
 		ret = self.trezor.encrypt_keyvalue(basics.Magic.unlockNode,
 			basics.Magic.unlockKey, keyToWrap,
-			ask_on_encrypt=False, ask_on_decrypt=True)
+			ask_on_encrypt=False, ask_on_decrypt=self.settings.NArg)
 		return ret
 
 	def encryptPassword(self, password, groupName):
@@ -438,7 +471,7 @@ class PasswordMap(object):
 		# trezor.encrypt_keyvalue() throws error on anythin larger than 1024
 		# In order to handle passwords+comments larger than 1023 we junk the passwords+comments
 		encrypted = b""
-		first = True
+		first = not self.settings.NArg
 		splits = [password[x:x+self.MAX_UNPADDED_TREZOR_ENCRYPT_SIZE]
 			for x in range(0, len(password), self.MAX_UNPADDED_TREZOR_ENCRYPT_SIZE)]
 		for junk in splits:
@@ -463,7 +496,7 @@ class PasswordMap(object):
 		iv, encryptedPassword = encryptedPassword[:BLOCKSIZE], encryptedPassword[BLOCKSIZE:]
 		# we junk the input, decrypt and reassemble the plaintext
 		passwordBytes = b""
-		first = True
+		first = not self.settings.NArg
 		splits = [encryptedPassword[x:x+self.MAX_PADDED_TREZOR_ENCRYPT_SIZE]
 			for x in range(0, len(encryptedPassword), self.MAX_PADDED_TREZOR_ENCRYPT_SIZE)]
 		for junk in splits:
@@ -473,3 +506,492 @@ class PasswordMap(object):
 			first = False
 			passwordBytes += Padding(BLOCKSIZE).unpad(plain)
 		return normalize_nfc(passwordBytes)
+
+	def showGroupNames(self):
+		for groupName in self.groups:
+			print(groupName)
+
+	def printGroup(self, groupName):
+		if groupName not in self.groups:
+			raise KeyError("Error: Password group with name '%s' does not exist."
+				% (groupName))
+		group = self.groups[groupName]
+		for key, encPwComments, _ in group.entries:
+			decryptedPwComments = self.decryptPassword(encPwComments, groupName)
+			lngth = int(decryptedPwComments[0:4])
+			decryptedPassword = decryptedPwComments[4:4+lngth]
+			decryptedComments = decryptedPwComments[4+lngth:]
+			print('key: "%s", password: "%s", comments: "%s"' %
+				(key, decryptedPassword, decryptedComments))
+
+	def clipPassword(self, groupName, keyName):
+		if groupName not in self.groups:
+			raise KeyError("Error: Password group with name '%s' does not exist."
+				% (groupName))
+		group = self.groups[groupName]
+		matchingKeys = 0
+		for key, encPwComments, _ in group.entries:
+			if keyName == key:
+				matchingKeys += 1
+				if matchingKeys == 1:
+					decryptedPwComments = self.decryptPassword(encPwComments, groupName)
+					lngth = int(decryptedPwComments[0:4])
+					decryptedPassword = decryptedPwComments[4:4+lngth]
+					# decryptedComments = decryptedPwComments[4+lngth:]
+					# pyperclip.copy(decryptedPassword)
+					clipboard = QApplication.clipboard()
+					clipboard.setText(decryptedPassword)
+					self.settings.mlogger.log("Copied password to clipboard.",
+						logging.DEBUG, "Clipboard")
+		if matchingKeys == 0:
+			# pyperclip.copy(decryptedPassword)
+			clipboard = QApplication.clipboard()
+			clipboard.setText('')
+			self.settings.mlogger.log("No key with name '%s' exists in group '%s'. "
+				"Clipboard was cleared."
+				% (keyName, groupName),
+				logging.DEBUG, "Clipboard")
+		if matchingKeys > 1:
+			self.settings.mlogger.log("%d keys with name '%s' exist in group '%s'. "
+				"The first one found was copied to clipboard."
+				% (matchingKeys, keyName, groupName),
+				logging.DEBUG, "Clipboard")
+
+	def showBoth(self, groupName, keyName=None):
+		if groupName not in self.groups:
+			raise KeyError("Error: Password group with name '%s' does not exist."
+				% (groupName))
+		group = self.groups[groupName]
+		matchingKeys = 0
+		for key, encPwComments, _ in group.entries:
+			if keyName is None or keyName == key:
+				matchingKeys += 1
+				decryptedPwComments = self.decryptPassword(encPwComments, groupName)
+				lngth = int(decryptedPwComments[0:4])
+				decryptedPassword = decryptedPwComments[4:4+lngth]
+				decryptedComments = decryptedPwComments[4+lngth:]
+				if keyName is None:
+					print('key: "%s", password: "%s", comments: "%s"' %
+						(key, decryptedPassword, decryptedComments))
+				else:
+					print('password: "%s", comments: "%s"' %
+						(decryptedPassword, decryptedComments))
+		self.settings.mlogger.log("%d match%s found and printed." %
+			(matchingKeys, '' if matchingKeys == 1 else 'es'),
+			logging.DEBUG, "Response")
+
+	def showPassword(self, groupName, keyName=None):
+		if groupName not in self.groups:
+			raise KeyError("Error: Password group with name '%s' does not exist."
+				% (groupName))
+		group = self.groups[groupName]
+		matchingKeys = 0
+		for key, encPwComments, _ in group.entries:
+			if keyName is None or keyName == key:
+				matchingKeys += 1
+				decryptedPwComments = self.decryptPassword(encPwComments, groupName)
+				lngth = int(decryptedPwComments[0:4])
+				decryptedPassword = decryptedPwComments[4:4+lngth]
+				# decryptedComments = decryptedPwComments[4+lngth:]
+				if keyName is None:
+					print('key: "%s", password: "%s"' % (key, decryptedPassword))
+				else:
+					print(decryptedPassword)
+		self.settings.mlogger.log("%d match%s found and printed." %
+			(matchingKeys, '' if matchingKeys == 1 else 'es'),
+			logging.DEBUG, "Response")
+
+	def showComments(self, groupName, keyName=None):
+		if groupName not in self.groups:
+			raise KeyError("Error: Password group with name '%s' does not exist."
+				% (groupName))
+		group = self.groups[groupName]
+		matchingKeys = 0
+		for key, encPwComments, _ in group.entries:
+			if keyName is None or keyName == key:
+				matchingKeys += 1
+				decryptedPwComments = self.decryptPassword(encPwComments, groupName)
+				lngth = int(decryptedPwComments[0:4])
+				# decryptedPassword = decryptedPwComments[4:4+lngth]
+				decryptedComments = decryptedPwComments[4+lngth:]
+				if keyName is None:
+					print('key: "%s", comments: "%s"' % (key, decryptedComments))
+				else:
+					print(decryptedComments)
+		self.settings.mlogger.log("%d match%s found and printed." %
+			(matchingKeys, '' if matchingKeys == 1 else 'es'),
+			logging.DEBUG, "Response")
+
+	def showKeys(self, groupName=None):
+		matchingGroups = 0
+		matchingKeys = 0
+		for groupName2 in self.groups:
+			if groupName is None or groupName == groupName2:
+				matchingGroups += 1
+				group = self.groups[groupName2]
+				for key, _, _ in group.entries:
+					matchingKeys += 1
+					if groupName is None:
+						print('group: "%s", key: "%s"' % (groupName2, key))
+					else:
+						print('key: "%s"' % (key))
+		self.settings.mlogger.log("%d matching group%s with a total "
+			"of %d key%s found and printed." %
+			(matchingGroups, '' if matchingGroups == 1 else 's',
+			matchingKeys, '' if matchingKeys == 1 else 's'),
+			logging.DEBUG, "Response")
+
+	def addEntry(self, groupName, keyName=None, password=None, comments=None):
+		"""
+		Watch out, there is a method with the same name also for PasswordGroup class
+		"""
+		if groupName not in self.groups:
+			self.groups[groupName] = PasswordGroup()
+			self.settings.mlogger.log("New group '%s' created." %
+				(groupName),
+				logging.DEBUG, "Response")
+		if keyName is not None:
+			if password is None:
+				password = u''
+			if comments is None:
+				comments = u''
+			plainPwComments = ("%4d" % len(password)) + password + comments
+			encPw = self.encryptPassword(plainPwComments, groupName)
+			bkupPw = self.backupKey.encryptPassword(plainPwComments)
+			self.groups[groupName].addEntry(keyName, encPw, bkupPw)
+			self.settings.mlogger.log("New record with key '%s' created "
+				"and added to group '%s'." %
+				(keyName, groupName),
+				logging.DEBUG, "Response")
+
+	def renameGroup(self, groupNameOld, groupNameNew, moreSecure=True):
+		if groupNameOld not in self.groups:
+			raise KeyError("Error: Password group with name '%s' does not exist."
+				% (groupNameOld))
+		if groupNameNew in self.groups:
+			raise KeyError("Error: Password group with name '%s' does already exist."
+				% (groupNameNew))
+		groupNew = self.createRenamedGroup(groupNameOld, groupNameNew, moreSecure)
+		self.deleteGroup(groupNameOld)
+		self.addGroup(groupNameNew, groupNew)
+		self.settings.mlogger.log("Group '%s' was renamed to '%s'." % (groupNameOld, groupNameNew),
+			logging.DEBUG, "GUI IO")
+
+	def updateEntryInGroup(self, groupName, keyName,
+		newKey=None, newPassword=None, newComments=None, askUser=False):
+		"""
+		updates any or all of the 3 values (key, password, comments)
+		in the entry specified by groupName and key.
+		Entries are not unique, so multiple entries might match.
+		@param groupName: identifies the group to update
+		@type groupName: string
+		@type keyName: string
+		@type newKey: string
+		@type newPassword: string
+		@type newComments: string
+		@param askUser: specifies if the user should be promped for input.
+			This should only be True in terminal-mode.
+			In GUI mode this should be false.
+		"""
+		if groupName not in self.groups:
+			raise KeyError("Error: Password group with name '%s' does not exist."
+				% (groupName))
+		if keyName is None:
+			raise KeyError("Key '%s' is not valid."
+				% (keyName))
+		matches = []  # keep track of positions of matches
+		group = self.groups[groupName]
+		rowCount = len(group.entries)
+		for row in reversed(range(rowCount)):  # Reverse countdown
+			key, _, _ = group.entries[row]
+			if keyName == key:
+				matches.append(row)
+		if len(matches) == 0:
+			raise KeyError("Warning: No match found for key '%s'. Nothing updated."
+				% (keyName))
+		if len(matches) == 1:
+			# get the old data
+			key, encPwComments, _ = group.entries[matches[0]]
+			decryptedPwComments = self.decryptPassword(encPwComments, groupName)
+			lngth = int(decryptedPwComments[0:4])
+			plainPw = decryptedPwComments[4:4+lngth]
+			plainComments = decryptedPwComments[4+lngth:]
+			# update elements
+			if newKey is not None:
+				key = newKey
+			if newPassword is not None:
+				plainPw = newPassword
+			if newComments is not None:
+				plainComments = newComments
+			plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
+			encPw = self.encryptPassword(plainPwComments, groupName)
+			bkupPw = self.backupKey.encryptPassword(plainPwComments)
+			group.updateEntry(matches[0], key, encPw, bkupPw)
+			self.settings.mlogger.log("Entry in row %d was updated." % (matches[0]),
+				logging.DEBUG, "Response")
+			return
+		# more than 1 match found
+		if not askUser:
+			raise KeyError("Warning: %d matches found for key '%s'. "
+				"Don't know which one to update. Hence, nothing updated."
+				% (len(matches), keyName))
+		# multiple matches and askUser is True
+		self.settings.mlogger.log("%d matches found for key '%s'. We now go "
+			"through each match one by one, so you can decide which "
+			"one(s) to update." %
+			(len(matches), keyName),
+			logging.DEBUG, "Response")
+		print("%d matches found for key '%s'. We now go "
+			"through each match one by one, so you can decide which "
+			"one(s) to update." %
+			(len(matches), keyName))
+		ii = 0
+		for row in matches:
+			ii += 1
+			# get the old data
+			key, encPwComments, _ = group.entries[row]
+			decryptedPwComments = self.decryptPassword(encPwComments, groupName)
+			lngth = int(decryptedPwComments[0:4])
+			plainPw = decryptedPwComments[4:4+lngth]
+			plainComments = decryptedPwComments[4+lngth:]
+			# ask user
+			print('Entry %d of %d: key: "%s", password: "%s", comments: "%s"' %
+				(ii, len(matches), key, plainPw, plainComments))
+			while True:
+				myinput = utils.input23(u"Update this entry? Y(es)/N(o)/Q(uit) ")
+				if (myinput.upper() == 'Y' or myinput.upper() == 'YES' or
+					myinput.upper() == 'N' or myinput.upper() == 'NO' or
+					myinput.upper() == 'Q' or myinput.upper() == 'QUIT'):
+					break
+			if myinput.upper() == 'Q' or myinput.upper() == 'QUIT':
+				return
+			if myinput.upper() == 'N' or myinput.upper() == 'NO':
+				continue
+			# update elements
+			if newKey is not None:
+				key = newKey
+			if newPassword is not None:
+				plainPw = newPassword
+			if newComments is not None:
+				plainComments = newComments
+			plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
+			encPw = self.encryptPassword(plainPwComments, groupName)
+			bkupPw = self.backupKey.encryptPassword(plainPwComments)
+			group.updateEntry(row, key, encPw, bkupPw)
+			self.settings.mlogger.log("Entry in row %d was updated." % (row),
+				logging.DEBUG, "Response")
+
+	def deletePasswordEntryBatch(self, groupName, keyName=None):
+		"""
+		Batch: it wil remove ALL matches without asking the user
+		"""
+		if groupName not in self.groups:
+			raise KeyError("Error: Password group with name '%s' does not exist."
+				% (groupName))
+		group = self.groups[groupName]
+		matchingKeys = 0
+		rowCount = len(group.entries)
+		for row in reversed(range(rowCount)):  # Reverse countdown
+			key, _, _ = group.entries[row]
+			if keyName is None or keyName == key:
+				matchingKeys += 1
+				group.removeEntry(row)
+				self.settings.mlogger.log('Removing row %d with key "%s".' %
+					(row, key), logging.DEBUG, "Response")
+		grpdeltxt = ''
+		if keyName is None:
+			del self.groups[groupName]  # delete the group from dictionary
+			grpdeltxt = ' 1 group deleted.'
+		self.settings.mlogger.log("%d key match%s found and deleted.%s" %
+			(matchingKeys, '' if matchingKeys == 1 else 'es', grpdeltxt),
+			logging.DEBUG, "Response")
+
+	def deletePasswordEntry(self, groupName, keyName=None, askUser=False):
+		"""
+		Deletes any or all of the 3 values (key, password, comments)
+		in the entry specified by groupName and key.
+
+		If no key is given the whole group will be deleted.
+		If a key is given it will look for the matching entries.
+		Entries are not unique, so multiple entries might match.
+		If askUser is true it will ask the user which entries to
+		delete thru terminal interaction.
+		@param groupName: identifies the group to update
+		@type groupName: string
+		@type keyName: string
+		@type newKey: string
+		@param askUser: specifies if the user should be promped for input.
+			This should only be True in terminal-mode.
+			In GUI mode this should be false.
+		"""
+		if groupName not in self.groups:
+			raise KeyError("Error: Password group with name '%s' does not exist."
+				% (groupName))
+		if keyName is None:
+			self.deletePasswordEntryBatch(groupName, keyName)
+			return
+		matches = []  # keep track of positions of matches
+		group = self.groups[groupName]
+		rowCount = len(group.entries)
+		for row in reversed(range(rowCount)):  # Reverse countdown
+			key, _, _ = group.entries[row]
+			if keyName == key:
+				matches.append(row)
+		if len(matches) == 0:
+			raise KeyError("Warning: No match found for key '%s'. Nothing deleted."
+				% (keyName))
+		if len(matches) == 1:
+			group.removeEntry(matches[0])
+			self.settings.mlogger.log('Entry in row %d with key "%s" was deleted.' %
+				(matches[0], keyName), logging.DEBUG, "Response")
+			return
+		# more than 1 match found
+		if not askUser:
+			raise KeyError("Warning: %d matches found for key '%s'. "
+				"Don't know which one to delete. Hence, nothing deleted."
+				% (len(matches), keyName))
+		# multiple matches and askUser is True
+		self.settings.mlogger.log("%d matches found for key '%s'. We now go "
+			"through each match one by one, so you can decide which "
+			"one(s) to delete." %
+			(len(matches), keyName),
+			logging.DEBUG, "Response")
+		print("%d matches found for key '%s'. We now go "
+			"through each match one by one, so you can decide which "
+			"one(s) to update." %
+			(len(matches), keyName))
+		ii = 0
+		for row in matches:
+			ii += 1
+			# get the old data
+			key, encPwComments, _ = group.entries[row]
+			decryptedPwComments = self.decryptPassword(encPwComments, groupName)
+			lngth = int(decryptedPwComments[0:4])
+			plainPw = decryptedPwComments[4:4+lngth]
+			plainComments = decryptedPwComments[4+lngth:]
+			# ask user
+			print('Entry %d of %d: key: "%s", password: "%s", comments: "%s"' %
+				(ii, len(matches), key, plainPw, plainComments))
+			while True:
+				myinput = utils.input23(u"Delete this entry? Y(es)/N(o)/Q(uit) ")
+				if (myinput.upper() == 'Y' or myinput.upper() == 'YES' or
+					myinput.upper() == 'N' or myinput.upper() == 'NO' or
+					myinput.upper() == 'Q' or myinput.upper() == 'QUIT'):
+					break
+			if myinput.upper() == 'Q' or myinput.upper() == 'QUIT':
+				return
+			if myinput.upper() == 'N' or myinput.upper() == 'NO':
+				continue
+			# delete entry
+			group.removeEntry(row)
+			self.settings.mlogger.log('Entry in row %d with key "%s" was deleted.' %
+				(row, key), logging.DEBUG, "Response")
+
+	def importCsv(self, fname):
+		"""
+		See also the method with the same name in Dialog class in dialogs.py
+
+		@param fname: name of CSV file
+		@type fname: string
+		@returns list of srings reflecting the list of NEW group names
+			that were ADDED to the known group names by reading
+			from the CSV file
+		"""
+		if not os.path.isfile(fname):
+			raise KeyError('File "%s" does not exist, is not a proper file, '
+				'or is a directory. Aborting.' % fname)
+		if not os.access(fname, os.R_OK):
+			raise KeyError('File "%s" is not readable. Aborting.' % fname)
+		# list to track all new group names read from the CSV file,
+		# that did not exist before
+		listOfAddedGroupNames = []
+		with open(fname, "r") as f:
+			csv.register_dialect("escaped", doublequote=False, escapechar='\\')
+			reader = csv.reader(f, dialect="escaped")
+			for csvEntry in reader:
+				# self.settings.mlogger.log("CSV Entry: len=%d 0=%s" % (len(csvEntry), csvEntry[0]),
+				# 	logging.DEBUG, "CSV import")
+				# self.settings.mlogger.log("CSV Entry: 0=%s, 1=%s, 2=%s, 3=%s" %
+				# 	(csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]), logging.DEBUG,
+				# 	"CSV import")
+				try:
+					groupName = normalize_nfc(csvEntry[0])
+					key = normalize_nfc(csvEntry[1])
+					plainPw = normalize_nfc(csvEntry[2])
+					plainComments = normalize_nfc(csvEntry[3])
+				except Exception as e:
+					raise IOError("Critical Error: Could not import CSV file. "
+						"CSV Entry: len=%d (should be 4) element[0]=%s. (%s)" %
+							(len(csvEntry), csvEntry[0], e))
+
+				groupNames = self.groups.keys()
+				if groupName not in groupNames:  # groups are unique
+					self.addGroup(groupName)
+					listOfAddedGroupNames.append(groupName)
+
+				if len(plainPw) + len(plainComments) > basics.MAX_SIZE_OF_PASSWDANDCOMMENTS:
+					self.settings.mlogger.log("Password and/or comments too long. "
+						"Combined they must not be larger than %d." % basics.MAX_SIZE_OF_PASSWDANDCOMMENTS, logging.NOTSET,
+						"CSV import")
+					return
+				group = self.groups[groupName]
+				plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
+				encPw = self.encryptPassword(plainPwComments, groupName)
+				bkupPw = self.backupKey.encryptPassword(plainPwComments)
+				group.addEntry(key, encPw, bkupPw)  # keys are not unique, multiple items with same key are allowed
+
+		self.settings.mlogger.log("TrezorPass has finished importing CSV file "
+			"from \"%s\" into \"%s\"." % (fname, self.settings.dbFilename), logging.INFO,
+			"CSV import")
+		return(listOfAddedGroupNames)
+
+	def exportCsv(self, fname):
+		"""
+		See also the method with the same name in Dialog class in dialogs.py
+
+		@param fname: name of CSV file
+		@type fname: string
+		@returns nothing
+		"""
+		backupKey = self.backupKey
+		try:
+			privateKey = backupKey.unwrapPrivateKey()
+		except CallException:
+			return
+
+		with open(fname, "w") as f:
+			csv.register_dialect("escaped", doublequote=False, escapechar='\\')
+			writer = csv.writer(f, dialect="escaped")
+			sortedGroupNames = sorted(self.groups.keys())
+			for groupName in sortedGroupNames:
+				group = self.groups[groupName]
+				for entry in group.entries:
+					key, _, bkupPw = entry
+					decryptedPwComments = backupKey.decryptPassword(bkupPw, privateKey)
+					lngth = int(decryptedPwComments[0:4])
+					password = decryptedPwComments[4:4+lngth]
+					comments = decryptedPwComments[4+lngth:]
+					# if we don't escape than the 2-letter string '"\' will
+					# lead to an exception on import
+					csvEntry = (escape(groupName),
+						escape(key),
+						escape(password),
+						escape(comments))
+					# all 4 elements in the 4-tuple are of type string
+					# Py2-vs-Py3: writerow() in Py2 implements on 7-bit unicode
+					# In py3 it implements full unicode.
+					# That means if there is a foreign character, writerow()
+					# in Py2 reports the exception:
+					# "UnicodeEncodeError: 'ascii' codec can't encode character u'\xxx' in position xx
+					# In Py2 we need to convert it back to bytes!
+					if sys.version_info[0] < 3:  # Py2-vs-Py3:
+						# the byte-conversion un-escapes, so we have to escape again!
+						csvEntry = (escape(tobytes(groupName)),
+							escape(tobytes(key)),
+							escape(tobytes(password)),
+							escape(tobytes(comments)))
+					writer.writerow(csvEntry)
+
+		self.settings.mlogger.log("TrezorPass has finished exporting CSV file "
+			"from \"%s\" to \"%s\"." % (self.settings.dbFilename, fname), logging.INFO,
+			"CSV export")

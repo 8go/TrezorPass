@@ -7,7 +7,6 @@ import os
 import base64
 import hashlib
 from shutil import copyfile
-import csv
 import time
 import sys
 
@@ -426,7 +425,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		groupName = dialog.newGroupName()
 		self.createGroup(groupName)
 
-	def renameGroupWithCheck(self, groupNameOld, groupNameNew):
+	def createRenamedGroupWithCheck(self, groupNameOld, groupNameNew):
 		"""
 		Creates a copy of a group by name as utf-8 encoded string
 		with a new group name.
@@ -451,7 +450,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		# with less than 3 rows dont bother the user with a pop-up
 		rowCount = len(self.pwMap.groups[groupNameOld].entries)
 		if rowCount < 3:
-			self.pwMap.renameGroupSecure(groupNameOld, groupNameNew)
+			self.pwMap.createRenamedGroupSecure(groupNameOld, groupNameNew)
 			return
 
 		msgBox = QMessageBox(parent=self)
@@ -470,16 +469,21 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 		res = msgBox.exec_()
 
 		if res == QMessageBox.Yes:
-			groupNew = self.pwMap.renameGroup(groupNameOld, groupNameNew, moreSecure=True)
+			moreSecure = True
 		else:
-			groupNew = self.pwMap.renameGroup(groupNameOld, groupNameNew, moreSecure=False)
+			moreSecure = False
+		groupNew = self.pwMap.createRenamedGroup(groupNameOld, groupNameNew, moreSecure)
+		self.settings.mlogger.log("Copy of group '%s' with new name '%s' "
+			"was created the %s way." %
+			(groupNameOld, groupNameNew, 'secure' if moreSecure else 'fast'),
+			logging.DEBUG, "GUI IO")
 		return(groupNew)
 
 	def editGroup(self, item, groupNameOld, groupNameNew):
 		"""
 		Slot to edit name a password group.
 		"""
-		groupNew = self.renameGroupWithCheck(groupNameOld, groupNameNew)
+		groupNew = self.createRenamedGroupWithCheck(groupNameOld, groupNameNew)
 		self.deleteGroup(item)
 		self.createGroup(groupNameNew, groupNew)
 		self.settings.mlogger.log("Group '%s' was renamed to '%s'." % (groupNameOld, groupNameNew),
@@ -1014,47 +1018,12 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 			return
 
 		fname = encoding.normalize_nfc(dialog.selectedFiles()[0])
-		with open(fname, "r") as f:
-			csv.register_dialect("escaped", doublequote=False, escapechar='\\')
-			reader = csv.reader(f, dialect="escaped")
-			for csvEntry in reader:
-				# self.settings.mlogger.log("CSV Entry: len=%d 0=%s" % (len(csvEntry), csvEntry[0]),
-				# 	logging.DEBUG, "CSV import")
-				# self.settings.mlogger.log("CSV Entry: 0=%s, 1=%s, 2=%s, 3=%s" %
-				# 	(csvEntry[0], csvEntry[1], csvEntry[2], csvEntry[3]), logging.DEBUG,
-				# 	"CSV import")
-				try:
-					groupName = encoding.normalize_nfc(csvEntry[0])
-					key = encoding.normalize_nfc(csvEntry[1])
-					plainPw = encoding.normalize_nfc(csvEntry[2])
-					plainComments = encoding.normalize_nfc(csvEntry[3])
-				except Exception as e:
-					raise IOError("Critical Error: Could not import CSV file. "
-						"CSV Entry: len=%d (should be 4) element[0]=%s. (%s)" %
-							(len(csvEntry), csvEntry[0], e))
-
-				groupNames = self.pwMap.groups.keys()
-				if groupName not in groupNames:  # groups are unique
-					self.pwMap.addGroup(groupName)
-					item = QStandardItem(groupName)
-					self.groupsModel.appendRow(item)
-
-				if len(plainPw) + len(plainComments) > basics.MAX_SIZE_OF_PASSWDANDCOMMENTS:
-					self.settings.mlogger.log("Password and/or comments too long. "
-						"Combined they must not be larger than %d." % basics.MAX_SIZE_OF_PASSWDANDCOMMENTS, logging.NOTSET,
-						"CSV import")
-					return
-				group = self.pwMap.groups[groupName]
-				plainPwComments = ("%4d" % len(plainPw)) + plainPw + plainComments
-				encPw = self.pwMap.encryptPassword(plainPwComments, groupName)
-				bkupPw = self.pwMap.backupKey.encryptPassword(plainPwComments)
-				group.addEntry(key, encPw, bkupPw)  # keys are not unique, multiple items with same key are allowed
-			self.groupsTree.sortByColumn(0, Qt.AscendingOrder)
-			self.setModified(True)
-
-		self.settings.mlogger.log("TrezorPass has finished importing CSV file "
-			"from \"%s\" into \"%s\"." % (fname, self.settings.dbFilename), logging.INFO,
-			"CSV import")
+		listOfAddedGroupNames = self.pwMap.importCsv(fname)
+		for groupNameNew in listOfAddedGroupNames:
+			item = QStandardItem(groupNameNew)
+			self.groupsModel.appendRow(item)
+		self.groupsTree.sortByColumn(0, Qt.AscendingOrder)
+		self.setModified(True)
 
 	def exportCsv(self):
 		"""
@@ -1076,48 +1045,7 @@ class MainWindow(QMainWindow, Ui_MainWindow):
 			return
 
 		fname = encoding.normalize_nfc(dialog.selectedFiles()[0])
-		backupKey = self.pwMap.backupKey
-		try:
-			privateKey = backupKey.unwrapPrivateKey()
-		except CallException:
-			return
-
-		with open(fname, "w") as f:
-			csv.register_dialect("escaped", doublequote=False, escapechar='\\')
-			writer = csv.writer(f, dialect="escaped")
-			sortedGroupNames = sorted(self.pwMap.groups.keys())
-			for groupName in sortedGroupNames:
-				group = self.pwMap.groups[groupName]
-				for entry in group.entries:
-					key, _, bkupPw = entry
-					decryptedPwComments = backupKey.decryptPassword(bkupPw, privateKey)
-					lngth = int(decryptedPwComments[0:4])
-					password = decryptedPwComments[4:4+lngth]
-					comments = decryptedPwComments[4+lngth:]
-					# if we don't escape than the 2-letter string '"\' will
-					# lead to an exception on import
-					csvEntry = (encoding.escape(groupName),
-						encoding.escape(key),
-						encoding.escape(password),
-						encoding.escape(comments))
-					# all 4 elements in the 4-tuple are of type string
-					# Py2-vs-Py3: writerow() in Py2 implements on 7-bit unicode
-					# In py3 it implements full unicode.
-					# That means if there is a foreign character, writerow()
-					# in Py2 reports the exception:
-					# "UnicodeEncodeError: 'ascii' codec can't encode character u'\xxx' in position xx
-					# In Py2 we need to convert it back to bytes!
-					if sys.version_info[0] < 3:  # Py2-vs-Py3:
-						# the byte-conversion un-escapes, so we have to escape again!
-						csvEntry = (encoding.escape(encoding.tobytes(groupName)),
-							encoding.escape(encoding.tobytes(key)),
-							encoding.escape(encoding.tobytes(password)),
-							encoding.escape(encoding.tobytes(comments)))
-					writer.writerow(csvEntry)
-
-		self.settings.mlogger.log("TrezorPass has finished exporting CSV file "
-			"from \"%s\" to \"%s\"." % (self.settings.dbFilename, fname), logging.INFO,
-			"CSV export")
+		self.pwMap.exportCsv(fname)
 
 	def saveDatabase(self):
 		"""
