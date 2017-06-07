@@ -101,7 +101,7 @@ class Settings(BaseSettings):
 		return(super(Settings, self).__str__() + "\n" +
 			"settings.TArg = %s\n" % self.TArg +
 			"settings.NArg = %s\n" % self.NArg +
-			"settings.PArg = %s\n" % u'***' +
+			"settings.PArg = %s\n" % '***' +
 			"settings.QArg = %s\n" % self.QArg +
 			"settings.FArg = %s\n" % self.FArg +
 			"settings.dbFilename = %s\n" % self.dbFilename +
@@ -360,6 +360,7 @@ class Args(BaseArgs):
 			sys.exit(2)
 		loglevelused = False
 		for opt, arg in opts:
+			arg = encoding.normalize_nfc(arg)
 			if opt in ("-h", "--help"):
 				self.printUsage()
 				sys.exit()
@@ -454,20 +455,23 @@ class Args(BaseArgs):
 			sys.exit(21)
 
 		if settings.FArg is not None:
-			if not os.path.isfile(settings.FArg):
-				self.settings.mlogger.log("File \"%s\" does not exist, is not a proper file, "
-					"or is a directory. Aborting." % (settings.FArg), logging.ERROR,
-					"File IO Error", True, logger)
-				sys.exit(21)
-			elif not os.access(settings.FArg, os.R_OK):
-				self.settings.mlogger.log("File \"%s\" cannot be read. No read permissions. "
-					"Aborting." % (settings.FArg), logging.ERROR, "File IO Error",
-					True, logger)
-				sys.exit(22)
-			elif settings.FArg != u"":
-				settings.dbFilename = settings.FArg
-				if settings.QArg:
-					settings.store()  # update/store permanently
+			if settings.FArg != '':
+				if not os.path.isfile(settings.FArg):
+					self.settings.mlogger.log("File \"%s\" does not exist, is not a proper file, "
+						"or is a directory. Aborting." % (settings.FArg), logging.ERROR,
+						"File IO Error", True, logger)
+					sys.exit(21)
+				elif not os.access(settings.FArg, os.R_OK):
+					self.settings.mlogger.log("File \"%s\" cannot be read. No read permissions. "
+						"Aborting." % (settings.FArg), logging.ERROR, "File IO Error",
+						True, logger)
+					sys.exit(22)
+				else:
+					settings.dbFilename = settings.FArg
+					if settings.QArg:
+						settings.store()  # update/store permanently
+			else:  # FArg == ''
+				settings.dbFilename = None  # force it call initialize
 
 		ii = 0
 		for ff in [settings.AArg, settings.CArg, settings.SArg, settings.OArg,

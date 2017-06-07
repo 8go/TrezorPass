@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
@@ -437,7 +438,7 @@ class PasswordMap(object):
 		"""
 		ret = self.trezor.decrypt_keyvalue(basics.Magic.unlockNode,
 			basics.Magic.unlockKey, wrappedOuterKey,
-			ask_on_encrypt=False, ask_on_decrypt=self.settings.NArg)
+			ask_on_encrypt=False, ask_on_decrypt=not self.settings.NArg)
 		return ret
 
 	def wrapKey(self, keyToWrap):
@@ -446,7 +447,7 @@ class PasswordMap(object):
 		"""
 		ret = self.trezor.encrypt_keyvalue(basics.Magic.unlockNode,
 			basics.Magic.unlockKey, keyToWrap,
-			ask_on_encrypt=False, ask_on_decrypt=self.settings.NArg)
+			ask_on_encrypt=False, ask_on_decrypt=not self.settings.NArg)
 		return ret
 
 	def encryptPassword(self, password, groupName):

@@ -1,0 +1,16 @@
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+Welcome to TrezorPass
+You have to go through a one-time only initialization step. 
+You will be asked 2 questions: a) the name of a file 
+where to store the password database and b) a passphrase. 
+The passphrase will be used with the Trezor to securely 
+encrypt your passwords. If you lose the passphrase you will 
+lose access to your password database. 
+Do not lose it!
+Give a filename where to store the password database? 
+Warning: If file exists it will be overwritten. 
+Note: There is no shell expansion, so do not use anything like ~, $HOME, $VAR, etc. 
+
+Filename where to store the password database? Ok, the password database will be stored in tcase.pwdb
+The passphrase was specified in the comand line, hence no need to ask.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.

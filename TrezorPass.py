@@ -18,6 +18,8 @@ import settings
 import processing
 import trezor_app_generic
 import password_map
+import sys
+import codecs
 
 """
 The file with the main function.
@@ -52,12 +54,6 @@ def showGui(trezor, app, dialog, settings):
 
 def useTerminal(pwMap, settings):
 	"""
-	Currently there are no terminal-only functins or a
-	Terminal-mode, but one could envision one in the future
-	with commands like:
-		-t --rm groupName [key]
-		-t --mv groupNameOld groupNameNew
-		-t --add groupName [key password comments]
 	"""
 	settings.mlogger.log(u"Entering Terminal mode. GUI will not be called.",
 		logging.DEBUG, u"Arguments")
@@ -100,6 +96,15 @@ def useTerminal(pwMap, settings):
 
 
 def main():
+	if sys.version_info[0] < 3:  # Py2-vs-Py3:
+		# redirecting output to a file cn cause unicode problems
+		# read: https://stackoverflow.com/questions/5530708/
+		# To fix it either run the scripts as: PYTHONIOENCODING=utf-8 python TrezorPass.py
+		# or add the following line of code.
+		# Only shows up in python2 TrezorPass.py >> log scenarios
+		# Exception: 'ascii' codec can't encode characters in position 10-13: ordinal not in range(128)
+		sys.stdout = codecs.getwriter('utf-8')(sys.stdout)
+
 	app = QApplication(sys.argv)
 	sets = settings.Settings()  # initialize settings
 	# parse command line

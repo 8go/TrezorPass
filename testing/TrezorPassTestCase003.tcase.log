@@ -1,0 +1,296 @@
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+Welcome to TrezorPass
+You have to go through a one-time only initialization step. 
+You will be asked 2 questions: a) the name of a file 
+where to store the password database and b) a passphrase. 
+The passphrase will be used with the Trezor to securely 
+encrypt your passwords. If you lose the passphrase you will 
+lose access to your password database. 
+Do not lose it!
+Give a filename where to store the password database? 
+Warning: If file exists it will be overwritten. 
+Note: There is no shell expansion, so do not use anything like ~, $HOME, $VAR, etc. 
+
+Filename where to store the password database? Ok, the password database will be stored in tcase.pwdb
+The passphrase was specified in the comand line, hence no need to ask.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+clip clear
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+clip paste
+clip clear
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+p1ñẽë儿clip paste
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+
+p1
+
+p1
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+key: "k1", password: ""
+key: "k1", password: "p1"
+key: "k1", password: ""
+key: "k1", password: "p1"
+key: "k2", password: ""
+key: "k2", password: "p1"
+key: "k2", password: ""
+key: "k2", password: "p1"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+p1ñẽë儿
+p1ñẽë儿
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+key: "k1ñẽë儿", password: "p1ñẽë儿"
+key: "k1ñẽë儿", password: "p1ñẽë儿"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+
+
+c1
+c1
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+key: "k1", comments: ""
+key: "k1", comments: ""
+key: "k1", comments: "c1"
+key: "k1", comments: "c1"
+key: "k2", comments: ""
+key: "k2", comments: ""
+key: "k2", comments: "c1"
+key: "k2", comments: "c1"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+c1ñẽë儿
+c1ñẽë儿 line1
+        line2
+        line3
+        line4
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+key: "k1ñẽë儿", comments: "c1ñẽë儿"
+key: "k1ñẽë儿", comments: "c1ñẽë儿 line1
+        line2
+        line3
+        line4"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+password: "", comments: ""
+password: "p1", comments: ""
+password: "", comments: "c1"
+password: "p1", comments: "c1"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+key: "k1", password: "", comments: ""
+key: "k1", password: "p1", comments: ""
+key: "k1", password: "", comments: "c1"
+key: "k1", password: "p1", comments: "c1"
+key: "k2", password: "", comments: ""
+key: "k2", password: "p1", comments: ""
+key: "k2", password: "", comments: "c1"
+key: "k2", password: "p1", comments: "c1"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+password: "p1ñẽë儿", comments: "c1ñẽë儿"
+password: "p1ñẽë儿", comments: "c1ñẽë儿 line1
+        line2
+        line3
+        line4"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+key: "k1ñẽë儿", password: "p1ñẽë儿", comments: "c1ñẽë儿"
+key: "k1ñẽë儿", password: "p1ñẽë儿", comments: "c1ñẽë儿 line1
+        line2
+        line3
+        line4"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+key: "k1"
+key: "k1"
+key: "k1"
+key: "k1"
+key: "k2"
+key: "k2"
+key: "k2"
+key: "k2"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+key: "k1ñẽë儿"
+key: "k1ñẽë儿"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+group: "g1", key: "k1"
+group: "g1", key: "k1"
+group: "g1", key: "k1"
+group: "g1", key: "k1"
+group: "g1", key: "k2"
+group: "g1", key: "k2"
+group: "g1", key: "k2"
+group: "g1", key: "k2"
+group: "g2", key: "k1"
+group: "g2", key: "k1"
+group: "g2", key: "k1"
+group: "g2", key: "k1"
+group: "g2", key: "k2"
+group: "g2", key: "k2"
+group: "g2", key: "k2"
+group: "g2", key: "k2"
+group: "g3", key: "k1"
+group: "g3", key: "k1"
+group: "g3", key: "k1"
+group: "g3", key: "k1"
+group: "g3", key: "k2"
+group: "g3", key: "k2"
+group: "g3", key: "k2"
+group: "g3", key: "k2"
+group: "g4ñẽë儿", key: "k1ñẽë儿"
+group: "g4ñẽë儿", key: "k1ñẽë儿"
+group: ""\", key: ""\"
+group: "\"", key: "\""
+group: "\\", key: "\\"
+group: "\\\", key: "\\\"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+"\
+\"
+\\
+\\\
+g1
+g2
+g3
+g4ñẽë儿
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+3 matches found for key 'k2'. We now go through each match one by one, so you can decide which one(s) to update.
+Entry 1 of 3: key: "k2", password: "d3", comments: "c3"
+Delete this entry? Y(es)/N(o)/Q(uit) Entry 2 of 3: key: "k2", password: "u3", comments: "c3"
+Delete this entry? Y(es)/N(o)/Q(uit) Entry 3 of 3: key: "k2", password: "d3", comments: "c3"
+Delete this entry? Y(es)/N(o)/Q(uit) WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+password: "u3", comments: "c3"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+password: "u3", comments: "c3"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+password: "pnew", comments: "cnew"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+group: "dg2new", key: "k1"
+group: "dg2new", key: "k1"
+group: "dg2new", key: "k3"
+group: "dg2new", key: "k3"
+group: "dg2new", key: "k4vnew"
+group: "dg2new", key: "k4vnew"
+group: "dg2new", key: "kvnew"
+group: "dg2new", key: "kvnew"
+group: "g1", key: "k1"
+group: "g1", key: "k1"
+group: "g1", key: "k1"
+group: "g1", key: "k1"
+group: "g1", key: "k1"
+group: "g1", key: "k1"
+group: "g1", key: "k1"
+group: "g1", key: "k1"
+group: "g1", key: "k2"
+group: "g1", key: "k2"
+group: "g1", key: "k2"
+group: "g1", key: "k2"
+group: "g1", key: "k2"
+group: "g1", key: "k2"
+group: "g1", key: "k2"
+group: "g1", key: "k2"
+group: "g2", key: "k1"
+group: "g2", key: "k1"
+group: "g2", key: "k1"
+group: "g2", key: "k1"
+group: "g2", key: "k1"
+group: "g2", key: "k1"
+group: "g2", key: "k1"
+group: "g2", key: "k1"
+group: "g2", key: "k2"
+group: "g2", key: "k2"
+group: "g2", key: "k2"
+group: "g2", key: "k2"
+group: "g2", key: "k2"
+group: "g2", key: "k2"
+group: "g2", key: "k2"
+group: "g2", key: "k2"
+group: "g3", key: "k1"
+group: "g3", key: "k1"
+group: "g3", key: "k1"
+group: "g3", key: "k1"
+group: "g3", key: "k1"
+group: "g3", key: "k1"
+group: "g3", key: "k1"
+group: "g3", key: "k1"
+group: "g3", key: "k2"
+group: "g3", key: "k2"
+group: "g3", key: "k2"
+group: "g3", key: "k2"
+group: "g3", key: "k2"
+group: "g3", key: "k2"
+group: "g3", key: "k2"
+group: "g3", key: "k2"
+group: "g4ñẽë儿", key: "k1ñẽë儿"
+group: "g4ñẽë儿", key: "k1ñẽë儿"
+group: "g4ñẽë儿", key: "k1ñẽë儿"
+group: "g4ñẽë儿", key: "k1ñẽë儿"
+group: ""\", key: ""\"
+group: ""\", key: ""\"
+group: "\"", key: "\""
+group: "\"", key: "\""
+group: "\\", key: "\\"
+group: "\\", key: "\\"
+group: "\\\", key: "\\\"
+group: "\\\", key: "\\\"
+WARNING:tp:Warning: the `--noconfirm` option is set. This should only be set for batch testing. Do not use this mode with real passwords.
+"\
+\"
+\\
+\\\
+dg2new
+g1
+g2
+g3
+g4ñẽë儿

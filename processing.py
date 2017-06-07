@@ -56,32 +56,37 @@ def initializeStorage(trezor, pwMap, settings):
 					'Try again. (%s)' % (pwFileName, e))
 			else:
 				break
-		print('For safety you will now be asked twice for the passphrase. ')
-		while True:
-			# read passphrase from stdin
-			try:
-				masterPassphrase1 = getpass.getpass(u"Please enter passphrase: ")
-				masterPassphrase1 = normalize_nfc(masterPassphrase1)
-			except KeyboardInterrupt:
-				sys.stderr.write(u"\nKeyboard interrupt: passphrase not read. Aborting.\n")
-				sys.exit(3)
-			except Exception as e:
-				sys.stderr.write(u"Critical error: Passphrase not read. Aborting. (%s)" % e)
-				sys.exit(3)
-			# read passphrase from stdin
-			try:
-				masterPassphrase2 = getpass.getpass(u"Please repeat passphrase: ")
-				masterPassphrase2 = normalize_nfc(masterPassphrase2)
-			except KeyboardInterrupt:
-				sys.stderr.write(u"\nKeyboard interrupt: passphrase not read. Aborting.\n")
-				sys.exit(3)
-			except Exception as e:
-				sys.stderr.write(u"Critical error: Passphrase not read. Aborting. (%s)" % e)
-				sys.exit(3)
-			if masterPassphrase1 == masterPassphrase2:
-				break
-			else:
-				print('The two passphrases provided do not match. Try again.')
+		print('Ok, the password database will be stored in %s' % (pwFileName))
+		if settings.PArg is not None and settings.PArg != '' and settings.NArg:
+			print('The passphrase was specified in the comand line, hence no need to ask.')
+			masterPassphrase1 = settings.PArg
+		else:
+			print('For safety you will now be asked twice for the passphrase. ')
+			while True:
+				# read passphrase from stdin
+				try:
+					masterPassphrase1 = getpass.getpass(u"Please enter passphrase: ")
+					masterPassphrase1 = normalize_nfc(masterPassphrase1)
+				except KeyboardInterrupt:
+					sys.stderr.write(u"\nKeyboard interrupt: passphrase not read. Aborting.\n")
+					sys.exit(3)
+				except Exception as e:
+					sys.stderr.write(u"Critical error: Passphrase not read. Aborting. (%s)" % e)
+					sys.exit(3)
+				# read passphrase from stdin
+				try:
+					masterPassphrase2 = getpass.getpass(u"Please repeat passphrase: ")
+					masterPassphrase2 = normalize_nfc(masterPassphrase2)
+				except KeyboardInterrupt:
+					sys.stderr.write(u"\nKeyboard interrupt: passphrase not read. Aborting.\n")
+					sys.exit(3)
+				except Exception as e:
+					sys.stderr.write(u"Critical error: Passphrase not read. Aborting. (%s)" % e)
+					sys.exit(3)
+				if masterPassphrase1 == masterPassphrase2:
+					break
+				else:
+					print('The two passphrases provided do not match. Try again.')
 		masterPassphrase = masterPassphrase1
 	else:
 		# GUI mode
