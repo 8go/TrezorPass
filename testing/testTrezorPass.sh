@@ -232,7 +232,6 @@ else
         echo "End    : If no warnings or errors were echoed, then there were no errors, all tests terminated successfully."
     done
 fi
-popd > /dev/null
 echo
 echo "Log files contain " $(grep -i error *$LOG | wc -l) " errors."
 echo "Log files contain " $(grep -i critical *$LOG | wc -l) " critical issues."
@@ -241,4 +240,5 @@ echo "Log files contain " $(grep -i ascii *$LOG | wc -l) " ascii-vs-unicode issu
 echo "Log files contain " $(grep -i unicode *$LOG | wc -l) " unicode issues."
 echo "Log files contain " $(grep -i latin *$LOG | wc -l) " latin-vs-unicode issues."
 echo "Log files contain " $(grep -i byte *$LOG | wc -l) " byte-vs-unicode issues."
+popd > /dev/null
 exit 0

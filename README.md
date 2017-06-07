@@ -66,16 +66,23 @@ need to be transformed into Python files. There is `Makefile`, you just need to 
 
     make
 
-## Build requirements
+# Build requirements
 
-* PyQt5 development tools are necessary, namely `pyuic5` (look for a package named
-`pyqt5-dev-tools`, `PyQt5-devel` or similar). Required to run `make`.
-* Depending on one's set-up one might need: `qttools5-dev-tools`
-(also sets up some of the Qt5 environment variables)
-* Depending on one's set-up one might need: `python-pyqt5` (Qt5 bindings for Python 2)
-* Depending on one's set-up one might need: `python3-pyqt5` (Qt5 bindings for Python 3)
-* Depending on one's set-up one might need: `python-pyqt5.qtsvg` (to display SVG logos in Python 2)
-* Depending on one's set-up one might need: `python3-pyqt5.qtsvg` (to display SVG logos in Python 3)
+    * PyQt5 development tools are necessary, namely `pyuic5` (look for a package named
+    `pyqt5-dev-tools`, `PyQt5-devel` or similar). Required to run `make`.
+    * Depending on one's set-up one might need: `qttools5-dev-tools`
+    (also sets up some of the Qt5 environment variables)
+    * Depending on one's set-up one might need: `python-pyqt5` (Qt5 bindings for Python 2)
+    * Depending on one's set-up one might need: `python3-pyqt5` (Qt5 bindings for Python 3)
+    * Depending on one's set-up one might need: `python-pyqt5.qtsvg` (to display SVG logos in Python 2)
+    * Depending on one's set-up one might need: `python3-pyqt5.qtsvg` (to display SVG logos in Python 3)
+
+
+# Testing
+
+There is an automated test harness. To run the tests, use
+
+    bash testing/testTrezorPass.sh
 
 # Running
 
