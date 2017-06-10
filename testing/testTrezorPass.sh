@@ -9,9 +9,9 @@ OPT=" -t -l 3 -n -f $PWDB -p $PASSPHRASE "  # base options
 LOG=tcase.log
 CSV=tcase.csv
 
-green=`tput setaf 2`
-red=$(tput setaf 1) # Error
-reset=`tput sgr0`
+green=$(tput setaf 2) # green color
+red=$(tput setaf 1) # red color
+reset=$(tput sgr0) # revert to normal/default
 
 GENGOLD=0 # 1...generate golden output, 0..do comparison runs
 TESTPY2=1 # 1...test Python2 if installed, 0...don't test Python2
@@ -54,7 +54,9 @@ function trailerTrezorPassTestCase () {
         fi
     done
     # cleanup
-    rm -f $PWDB $LOG $CSV
+    rm -f $PWDB $CSV
+    pyshort=$(basename "$py")
+    mv $LOG "__$pyshort.$1.$LOG"
 }
 
 function TrezorPassTestCase001 () {
@@ -233,12 +235,29 @@ else
     done
 fi
 echo
-echo "Log files contain " $(grep -i error *$LOG | wc -l) " errors."
-echo "Log files contain " $(grep -i critical *$LOG | wc -l) " critical issues."
-echo "Log files contain " $(grep -i warning *$LOG | grep -v noconfirm | grep -v "If file exists it will be overwritten" | wc -l) " warnings."
-echo "Log files contain " $(grep -i ascii *$LOG | wc -l) " ascii-vs-unicode issues."
-echo "Log files contain " $(grep -i unicode *$LOG | wc -l) " unicode issues."
-echo "Log files contain " $(grep -i latin *$LOG | wc -l) " latin-vs-unicode issues."
-echo "Log files contain " $(grep -i byte *$LOG | wc -l) " byte-vs-unicode issues."
+count=$(grep -i error *$LOG | wc -l)
+sum=$((count))
+echo "Log files contain " $count " errors."
+count=$(grep -i critical *$LOG | wc -l)
+sum=$((sum + count))
+echo "Log files contain " $count " critical issues."
+count=$(grep -i warning *$LOG | grep -v noconfirm | grep -v "If file exists it will be overwritten" | wc -l)
+sum=$((sum + count))
+echo "Log files contain " $count " warnings."
+count=$(grep -i ascii *$LOG | wc -l)
+sum=$((sum + count))
+echo "Log files contain " $count " ascii-vs-unicode issues."
+count=$(grep -i unicode *$LOG | wc -l)
+sum=$((sum + count))
+echo "Log files contain " $count " unicode issues."
+count=$(grep -i latin *$LOG | wc -l)
+sum=$((sum + count))
+echo "Log files contain " $count " latin-vs-unicode issues."
+count=$(grep -i byte *$LOG | wc -l)
+sum=$((sum + count))
+echo "Log files contain " $count " byte-vs-unicode issues."
+if [ $sum -eq 0 ]; then
+    rm -f __*.$LOG
+fi
 popd > /dev/null
 exit 0

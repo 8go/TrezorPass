@@ -97,7 +97,7 @@ def useTerminal(pwMap, settings):
 
 def main():
 	if sys.version_info[0] < 3:  # Py2-vs-Py3:
-		# redirecting output to a file cn cause unicode problems
+		# redirecting output to a file can cause unicode problems
 		# read: https://stackoverflow.com/questions/5530708/
 		# To fix it either run the scripts as: PYTHONIOENCODING=utf-8 python TrezorPass.py
 		# or add the following line of code.
